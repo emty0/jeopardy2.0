@@ -1,16 +1,28 @@
 import { createFileRoute, redirect, Link } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
-import { auth } from '#/lib/auth'
-import { db } from '#/db/index'
 import { gameSession, gamePlayer, quiz } from '#/db/schema'
 import { eq } from 'drizzle-orm'
 import { getRequest } from '@tanstack/react-start/server'
 import { QRCodeSVG } from 'qrcode.react'
 import { z } from 'zod'
+import { useGameSocket } from '#/hooks/useGameSocket'
+import { useState } from 'react'
+import { Tv, Smartphone, Copy, Check, Crown, Radio } from 'lucide-react'
+import {
+  Button,
+  Card,
+  Pill,
+  PageContainer,
+  PageHeader,
+} from '#/components/ui'
+import { Avatar } from '#/components/game/Scoreboard'
 
 const getSessionData = createServerFn({ method: 'GET' })
   .inputValidator(z.object({ sessionId: z.string() }))
   .handler(async ({ data }) => {
+    const { auth } = await import('#/lib/auth')
+    const { db } = await import('#/db/index')
+
     const request = getRequest()
     const session = await auth.api.getSession({ headers: request.headers })
     if (!session) throw redirect({ to: '/auth/login' })
@@ -18,7 +30,11 @@ const getSessionData = createServerFn({ method: 'GET' })
     const gs = await db.select().from(gameSession).where(eq(gameSession.id, data.sessionId)).get()
     if (!gs) throw new Error('Session nicht gefunden')
 
-    const players = await db.select().from(gamePlayer).where(eq(gamePlayer.sessionId, data.sessionId)).all()
+    const players = await db
+      .select()
+      .from(gamePlayer)
+      .where(eq(gamePlayer.sessionId, data.sessionId))
+      .all()
     const q = await db.select({ title: quiz.title }).from(quiz).where(eq(quiz.id, gs.quizId)).get()
 
     return {
@@ -37,88 +53,142 @@ export const Route = createFileRoute('/sessions/$sessionId/')({
 })
 
 function SessionLobbyPage() {
-  const { session, players, quizTitle, isMaster, baseUrl } = Route.useLoaderData()
+  const { session, players: initialPlayers, quizTitle, isMaster, baseUrl } = Route.useLoaderData()
+  const { sessionId } = Route.useParams()
+  const { state } = useGameSocket(sessionId, null)
   const joinUrl = `${baseUrl}/sessions/${session.id}/join?code=${session.joinCode}`
+  const [copied, setCopied] = useState(false)
+
+  const livePlayers =
+    state?.players ??
+    initialPlayers.map(p => ({
+      id: p.id,
+      displayName: p.displayName,
+      score: p.score,
+      isConnected: p.isConnected,
+      userId: p.userId,
+      color: p.color,
+    }))
+
+  function copyJoinUrl() {
+    navigator.clipboard.writeText(joinUrl).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    })
+  }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Lobby</h1>
-          <p className="text-neutral-400">{quizTitle}</p>
-        </div>
-        <div className="text-center">
-          <p className="text-xs text-neutral-500 mb-1">Join-Code</p>
-          <p className="text-3xl font-black text-yellow-400 tracking-widest font-mono">{session.joinCode}</p>
-        </div>
-      </div>
+    <PageContainer size="lg">
+      <PageHeader
+        eyebrow="Lobby"
+        title={quizTitle}
+        subtitle="Spieler joinen über QR-Code oder Link."
+        trailing={
+          <div className="text-right">
+            <p className="text-[10px] uppercase tracking-[0.25em] text-ink-500 mb-1">Join-Code</p>
+            <p className="font-board text-4xl sm:text-5xl tracking-[0.18em] text-cyan-400 leading-none">
+              {session.joinCode}
+            </p>
+          </div>
+        }
+      />
 
-      <div className="grid gap-6 sm:grid-cols-2">
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 flex flex-col items-center">
-          <h2 className="font-semibold mb-4">QR-Code zum Joinen</h2>
-          <div className="bg-white p-3 rounded-xl">
+      <div className="grid gap-5 sm:grid-cols-2">
+        <Card className="p-6 flex flex-col items-center text-center gap-4">
+          <p className="font-board uppercase tracking-wider text-lg text-ink-50">QR-Code</p>
+          <div className="bg-white p-3 rounded-2xl shadow-[var(--shadow-tile)]">
             <QRCodeSVG value={joinUrl} size={180} />
           </div>
-          <p className="text-xs text-neutral-500 mt-3 text-center break-all">{joinUrl}</p>
-        </div>
+          <button
+            type="button"
+            onClick={copyJoinUrl}
+            className="inline-flex items-center gap-1.5 text-xs text-ink-300 hover:text-cyan-300 transition-colors break-all"
+          >
+            {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+            {copied ? 'Kopiert' : 'Link kopieren'}
+          </button>
+          <p className="text-xs text-ink-500 break-all max-w-full">{joinUrl}</p>
+        </Card>
 
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-          <h2 className="font-semibold mb-4">Spieler ({players.length})</h2>
-          {players.length === 0 ? (
-            <p className="text-neutral-500 text-sm">Noch keine Spieler…</p>
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <p className="font-board uppercase tracking-wider text-lg text-ink-50">
+              Spieler ({livePlayers.length})
+            </p>
+            {state && (
+              <Pill tone="good" leading={<Radio className="w-3 h-3 animate-pulse" />}>
+                Live
+              </Pill>
+            )}
+          </div>
+          {livePlayers.length === 0 ? (
+            <p className="text-ink-500 text-sm py-6 text-center">Noch keine Spieler…</p>
           ) : (
-            <ul className="space-y-2">
-              {players.map(p => (
-                <li key={p.id} className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
-                  <span className="text-sm">{p.displayName}</span>
+            <ul className="flex flex-col gap-2">
+              {livePlayers.map(p => (
+                <li
+                  key={p.id}
+                  className="flex items-center gap-3 px-3 h-12 rounded-xl bg-bg-800/60 border border-bg-700"
+                >
+                  <Avatar name={p.displayName} connected={p.isConnected} size="sm" />
+                  <span className="text-sm font-medium text-ink-50 flex-1 truncate">
+                    {p.displayName}
+                  </span>
                   {p.userId === session.masterId && (
-                    <span className="text-xs text-yellow-400 ml-auto">Master</span>
+                    <Pill tone="amber" leading={<Crown className="w-3 h-3" />}>
+                      Master
+                    </Pill>
                   )}
                 </li>
               ))}
             </ul>
           )}
-          <p className="text-xs text-neutral-600 mt-4">Die Seite neu laden um neue Spieler zu sehen.</p>
-        </div>
+        </Card>
       </div>
 
       {isMaster && (
         <div className="mt-6 flex flex-col gap-3">
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <Link
               to="/sessions/$sessionId/board"
               params={{ sessionId: session.id }}
               target="_blank"
-              className="flex-1 text-center py-3 bg-blue-700 hover:bg-blue-600 text-white font-bold rounded-xl transition-colors"
+              className="flex-1"
             >
-              📺 Board-Ansicht öffnen (TV)
+              <Button variant="accent" size="lg" fullWidth leading={<Tv className="w-5 h-5" />}>
+                Board (TV) öffnen
+              </Button>
             </Link>
             <Link
               to="/sessions/$sessionId/master"
               params={{ sessionId: session.id }}
-              className="flex-1 text-center py-3 bg-neutral-700 hover:bg-neutral-600 text-white font-bold rounded-xl transition-colors"
+              className="flex-1"
             >
-              📱 Master-Ansicht
+              <Button variant="primary" size="lg" fullWidth leading={<Smartphone className="w-5 h-5" />}>
+                Master-Ansicht
+              </Button>
             </Link>
           </div>
-          <p className="text-xs text-neutral-500 text-center">
-            Öffne die Board-Ansicht auf dem TV-Gerät, dann starte das Spiel über die Master-Ansicht.
+          <p className="text-xs text-ink-500 text-center">
+            Öffne das Board am TV, dann starte über die Master-Ansicht auf deinem Handy.
           </p>
         </div>
       )}
 
       {!isMaster && (
         <div className="mt-6">
-          <Link
-            to="/sessions/$sessionId/play"
-            params={{ sessionId: session.id }}
-            className="block text-center py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-xl transition-colors"
-          >
-            🎮 Zum Spiel
+          <Link to="/sessions/$sessionId/play" params={{ sessionId: session.id }}>
+            <Button
+              variant="primary"
+              size="xl"
+              fullWidth
+              leading={<Smartphone className="w-5 h-5" />}
+            >
+              Zum Spiel
+            </Button>
           </Link>
         </div>
       )}
-    </div>
+    </PageContainer>
   )
 }

@@ -104,6 +104,19 @@ export const question = sqliteTable('question', {
   mediaType: text('media_type'), // 'image' | 'audio' | 'video'
   youtubeUrl: text('youtube_url'),
   allowRebuzz: integer('allow_rebuzz', { mode: 'boolean' }).notNull().default(true),
+  autoplayMedia: integer('autoplay_media', { mode: 'boolean' }).notNull().default(false),
+  rapidFire: integer('rapid_fire', { mode: 'boolean' }).notNull().default(false),
+  showMediaOnPlayer: integer('show_media_on_player', { mode: 'boolean' }).notNull().default(false),
+  mediaPlaceholder: integer('media_placeholder', { mode: 'boolean' }).notNull().default(false),
+})
+
+export const questionMedia = sqliteTable('question_media', {
+  id: id(),
+  questionId: text('question_id').notNull().references(() => question.id, { onDelete: 'cascade' }),
+  url: text('url').notNull(),
+  type: text('type').notNull().default('image'), // 'image' | 'audio' | 'video' | 'youtube'
+  role: text('role').notNull().default('question'), // 'question' | 'answer'
+  sortOrder: integer('sort_order').notNull().default(0),
 })
 
 // ─── Game Sessions ────────────────────────────────────────────────────────────
@@ -128,6 +141,7 @@ export const gamePlayer = sqliteTable('game_player', {
   displayName: text('display_name').notNull(),
   score: integer('score').notNull().default(0),
   isConnected: integer('is_connected', { mode: 'boolean' }).notNull().default(true),
+  color: text('color').notNull().default('#7C3AED'),
   joinedAt: now(),
 })
 

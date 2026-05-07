@@ -1,5 +1,5 @@
 import { defineWebSocketHandler } from 'nitro/h3'
-import { loadGameState, applyEvent } from '#/lib/game-state'
+import { loadGameState, applyEvent, gameStateMap } from '#/lib/game-state'
 
 // Maps peer.id → { sessionId, playerId }
 const peerMeta = new Map<string, { sessionId: string; playerId: string | null }>()
@@ -30,6 +30,8 @@ export default defineWebSocketHandler({
     if (event.type === 'JOIN') {
       meta.playerId = (event.payload.playerId as string) ?? null
       peerMeta.set(peer.id, meta)
+      // Force reload from DB so newly joined players are included
+      gameStateMap.delete(meta.sessionId)
       await applyEvent(meta.sessionId, { type: 'PLAYER_CONNECTED', payload: { playerId: meta.playerId } })
     }
 

@@ -9,7 +9,7 @@ const ALLOWED_TYPES = new Set([
   'video/mp4', 'video/webm', 'video/ogg',
 ])
 
-const MAX_SIZE = 20 * 1024 * 1024 // 20 MB
+const MAX_SIZE = 200 * 1024 * 1024 // 200 MB
 
 export default defineEventHandler(async (event) => {
   const form = await readMultipartFormData(event)
@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
   if (!file?.data) throw createError({ statusCode: 400, message: 'Feld "file" fehlt.' })
 
   if (file.data.length > MAX_SIZE) {
-    throw createError({ statusCode: 413, message: 'Datei zu groß (max. 20 MB).' })
+    throw createError({ statusCode: 413, message: 'Datei zu groß (max. 200 MB).' })
   }
 
   const mime = file.type ?? 'application/octet-stream'

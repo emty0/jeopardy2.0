@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as JoinRouteImport } from './routes/join'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as QuizzesIndexRouteImport } from './routes/quizzes/index'
 import { Route as SessionsNewRouteImport } from './routes/sessions/new'
@@ -28,6 +29,11 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JoinRoute = JoinRouteImport.update({
+  id: '/join',
+  path: '/join',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -103,6 +109,7 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/join': typeof JoinRoute
   '/settings': typeof SettingsRoute
   '/admin/invites': typeof AdminInvitesRoute
   '/auth/login': typeof AuthLoginRoute
@@ -120,6 +127,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/join': typeof JoinRoute
   '/settings': typeof SettingsRoute
   '/admin/invites': typeof AdminInvitesRoute
   '/auth/login': typeof AuthLoginRoute
@@ -138,6 +146,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/join': typeof JoinRoute
   '/settings': typeof SettingsRoute
   '/admin/invites': typeof AdminInvitesRoute
   '/auth/login': typeof AuthLoginRoute
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/join'
     | '/settings'
     | '/admin/invites'
     | '/auth/login'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/join'
     | '/settings'
     | '/admin/invites'
     | '/auth/login'
@@ -191,6 +202,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/join'
     | '/settings'
     | '/admin/invites'
     | '/auth/login'
@@ -209,6 +221,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  JoinRoute: typeof JoinRoute
   SettingsRoute: typeof SettingsRoute
   AdminInvitesRoute: typeof AdminInvitesRoute
   AuthLoginRoute: typeof AuthLoginRoute
@@ -232,6 +245,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/join': {
+      id: '/join'
+      path: '/join'
+      fullPath: '/join'
+      preLoaderRoute: typeof JoinRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -337,6 +357,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  JoinRoute: JoinRoute,
   SettingsRoute: SettingsRoute,
   AdminInvitesRoute: AdminInvitesRoute,
   AuthLoginRoute: AuthLoginRoute,

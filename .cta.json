@@ -1,0 +1,27 @@
+{
+  "projectName": "jeopardy2.0",
+  "mode": "file-router",
+  "typescript": true,
+  "packageManager": "npm",
+  "includeExamples": false,
+  "tailwind": true,
+  "addOnOptions": {
+    "drizzle": {
+      "database": "sqlite"
+    }
+  },
+  "envVarValues": {},
+  "git": true,
+  "install": true,
+  "routerOnly": false,
+  "version": 1,
+  "framework": "react",
+  "chosenAddOns": [
+    "nitro",
+    "compiler",
+    "drizzle",
+    "form",
+    "better-auth",
+    "tanstack-query"
+  ]
+}

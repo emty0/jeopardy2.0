@@ -1,6 +1,9 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { authClient } from '#/lib/auth-client'
+import { motion } from 'framer-motion'
+import { Mail, Lock } from 'lucide-react'
+import { Button, FormField, Input, Wordmark } from '#/components/ui'
 
 export const Route = createFileRoute('/auth/login')({
   component: LoginPage,
@@ -17,56 +20,78 @@ function LoginPage() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const { error: err } = await authClient.signIn.email({ email, password })
-    setLoading(false)
-    if (err) {
-      setError('E-Mail oder Passwort falsch.')
-    } else {
-      await navigate({ to: '/' })
+    try {
+      const result = await authClient.signIn.email({ email, password })
+      setLoading(false)
+      if (result.error) {
+        setError(`Fehler: ${result.error.message ?? result.error.status ?? 'Unbekannt'}`)
+      } else {
+        await navigate({ to: '/' })
+      }
+    } catch (e: unknown) {
+      setLoading(false)
+      setError(`Ausnahme: ${e instanceof Error ? e.message : String(e)}`)
     }
   }
 
   return (
-    <div className="flex items-center justify-center min-h-[80vh] px-4">
-      <div className="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-xl p-8">
-        <h1 className="text-2xl font-bold text-center mb-6">Anmelden</h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm text-neutral-400 mb-1">E-Mail</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white placeholder-neutral-500 focus:outline-none focus:border-yellow-500"
-              placeholder="deine@email.de"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-neutral-400 mb-1">Passwort</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-yellow-500"
-              placeholder="••••••••"
-            />
-          </div>
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-black font-bold py-2 rounded-lg transition-colors"
-          >
-            {loading ? 'Anmelden…' : 'Anmelden'}
-          </button>
-        </form>
-        <p className="text-center text-sm text-neutral-500 mt-6">
-          Noch kein Konto?{' '}
-          <span className="text-neutral-400">Registrierung nur per Einladung.</span>
+    <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center px-4 py-12">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="w-full max-w-sm"
+      >
+        <div className="text-center mb-6">
+          <Wordmark size="lg" className="mb-3" />
+          <p className="text-ink-300 text-sm">Willkommen zurück.</p>
+        </div>
+        <div className="rounded-3xl bg-bg-900/80 border border-bg-700 backdrop-blur-md p-6 sm:p-8 shadow-[0_30px_80px_-20px_rgb(0_0_0_/_0.6)]">
+          <h1 className="font-board uppercase tracking-wider text-2xl text-ink-50 mb-6 text-center">
+            Anmelden
+          </h1>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <FormField label="E-Mail">
+              <div className="relative">
+                <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500 pointer-events-none" />
+                <Input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="deine@email.de"
+                  className="pl-10"
+                />
+              </div>
+            </FormField>
+            <FormField label="Passwort" error={error || undefined}>
+              <div className="relative">
+                <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500 pointer-events-none" />
+                <Input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="pl-10"
+                />
+              </div>
+            </FormField>
+            <Button type="submit" variant="primary" size="lg" fullWidth disabled={loading}>
+              {loading ? 'Anmelden…' : 'Anmelden'}
+            </Button>
+          </form>
+          <p className="text-center text-sm text-ink-500 mt-6">
+            Noch kein Konto?{' '}
+            <span className="text-ink-300">Registrierung nur per Einladung.</span>
+          </p>
+        </div>
+        <p className="text-center text-xs text-ink-500 mt-4">
+          <Link to="/" className="hover:text-ink-300 transition-colors">
+            ← Zurück zur Startseite
+          </Link>
         </p>
-      </div>
+      </motion.div>
     </div>
   )
 }

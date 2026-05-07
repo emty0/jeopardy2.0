@@ -1,5 +1,45 @@
-
 @import "tailwindcss";
+
+@theme {
+  --color-bg-950: #07080F;
+  --color-bg-900: #0B0F1A;
+  --color-bg-800: #131826;
+  --color-bg-700: #1C2236;
+  --color-bg-600: #2A3150;
+
+  --color-violet-700: #5B21B6;
+  --color-violet-600: #6D28D9;
+  --color-violet-500: #7C3AED;
+  --color-violet-400: #A78BFA;
+
+  --color-cyan-500: #22D3EE;
+  --color-cyan-400: #67E8F9;
+  --color-cyan-300: #A5F3FC;
+
+  --color-amber-500: #F59E0B;
+  --color-amber-400: #FBBF24;
+
+  --color-good: #22C55E;
+  --color-bad: #EF4444;
+
+  --color-ink-50: #F4F6FB;
+  --color-ink-200: #C7CFE0;
+  --color-ink-300: #9AA6BF;
+  --color-ink-500: #5C6985;
+  --color-ink-700: #2F3956;
+
+  --font-display: "Inter Tight", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-board: "Bebas Neue", "Inter Tight", "Impact", sans-serif;
+
+  --radius-tile: 0.75rem;
+  --radius-card: 1rem;
+  --radius-pill: 9999px;
+
+  --shadow-tile: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 8px 22px -10px rgb(0 0 0 / 0.7);
+  --shadow-glow-violet: 0 0 0 4px rgb(124 58 237 / 0.25), 0 18px 32px -12px rgb(124 58 237 / 0.55);
+  --shadow-glow-amber: 0 0 0 6px rgb(245 158 11 / 0.30), 0 18px 32px -12px rgb(245 158 11 / 0.55);
+  --shadow-glow-cyan: 0 0 0 4px rgb(34 211 238 / 0.25), 0 18px 32px -12px rgb(34 211 238 / 0.55);
+}
 
 * {
   box-sizing: border-box;
@@ -13,5 +53,54 @@ body,
 
 body {
   margin: 0;
+  background: var(--color-bg-950);
+  color: var(--color-ink-50);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+@keyframes tile-sheen {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Dezente Shine-Animation auf verfügbaren Kacheln (TV-Board) */
+.tile-available::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    rgb(34 211 238 / 0.07) 50%,
+    transparent 65%
+  );
+  background-size: 200% 100%;
+  animation: tile-sheen 9s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes breathing-ring {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgb(124 58 237 / 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 16px rgb(124 58 237 / 0);
+  }
+}
+
+.buzzer-armed {
+  animation: breathing-ring 2s ease-in-out infinite;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}

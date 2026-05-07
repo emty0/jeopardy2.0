@@ -1,8 +1,6 @@
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { useEffect } from 'react'
-import { auth } from '#/lib/auth'
-import { db } from '#/db/index'
 import { gameSession, gamePlayer } from '#/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { getRequest } from '@tanstack/react-start/server'
@@ -12,6 +10,9 @@ import { z } from 'zod'
 const joinSession = createServerFn({ method: 'POST' })
   .inputValidator(z.object({ sessionId: z.string(), code: z.string() }))
   .handler(async ({ data }) => {
+    const { auth } = await import('#/lib/auth')
+    const { db } = await import('#/db/index')
+
     const request = getRequest()
     const session = await auth.api.getSession({ headers: request.headers })
     if (!session) throw redirect({ to: `/auth/login` })
@@ -31,6 +32,13 @@ const joinSession = createServerFn({ method: 'POST' })
       .get()
 
     if (!existing) {
+      const { pickPlayerColor } = await import('#/lib/playerColors')
+      const others = await db
+        .select({ color: gamePlayer.color })
+        .from(gamePlayer)
+        .where(eq(gamePlayer.sessionId, data.sessionId))
+        .all()
+      const color = pickPlayerColor(others.map(o => o.color), session.user.id)
       await db.insert(gamePlayer).values({
         id: nanoid(10),
         sessionId: data.sessionId,
@@ -38,6 +46,7 @@ const joinSession = createServerFn({ method: 'POST' })
         displayName: session.user.name ?? session.user.email ?? 'Spieler',
         score: 0,
         isConnected: true,
+        color,
       })
     }
 
@@ -71,8 +80,14 @@ function JoinPage() {
   }, [sessionId, code, navigate])
 
   return (
-    <div className="flex items-center justify-center min-h-[80vh]">
-      <p className="text-neutral-400 text-lg">Session wird beigetreten…</p>
+    <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center px-4">
+      <div className="flex flex-col items-center gap-4">
+        <div className="relative w-12 h-12">
+          <span className="absolute inset-0 rounded-full border-2 border-violet-500/30" />
+          <span className="absolute inset-0 rounded-full border-2 border-transparent border-t-cyan-400 animate-spin" />
+        </div>
+        <p className="text-ink-300 text-sm tracking-wide">Session wird beigetreten…</p>
+      </div>
     </div>
   )
 }

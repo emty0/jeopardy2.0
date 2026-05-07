@@ -10,6 +10,11 @@ import { nitro } from 'nitro/vite'
 
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
+  server: {
+    host: '0.0.0.0',
+    port: 3000,
+    strictPort: true,
+  },
   optimizeDeps: {
     exclude: ['better-sqlite3', 'better-auth', 'drizzle-orm'],
   },

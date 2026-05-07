@@ -1,15 +1,25 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
-import { db } from '#/db/index'
 import { invite } from '#/db/schema'
 import { desc } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
-import { auth } from '#/lib/auth'
 import { getRequest } from '@tanstack/react-start/server'
 import { z } from 'zod'
+import { Mail, Send, Copy, Check } from 'lucide-react'
+import {
+  Button,
+  Card,
+  FormField,
+  Input,
+  Pill,
+  PageContainer,
+  PageHeader,
+} from '#/components/ui'
 
 const getInvites = createServerFn({ method: 'GET' }).handler(async () => {
+  const { db } = await import('#/db/index')
+
   const invites = await db
     .select({
       id: invite.id,
@@ -27,6 +37,9 @@ const getInvites = createServerFn({ method: 'GET' }).handler(async () => {
 const sendInvite = createServerFn({ method: 'POST' })
   .inputValidator(z.object({ email: z.string().email() }))
   .handler(async ({ data }) => {
+    const { auth } = await import('#/lib/auth')
+    const { db } = await import('#/db/index')
+
     const request = getRequest()
     const session = await auth.api.getSession({ headers: request.headers })
     if (!session) throw new Error('Nicht angemeldet')
@@ -35,15 +48,18 @@ const sendInvite = createServerFn({ method: 'POST' })
     await db.insert(invite).values({
       id: token,
       email: data.email,
-      invitedById: session!.user.id,
+      invitedById: session.user.id,
       expiresAt,
     })
     const link = `${process.env.BETTER_AUTH_URL || 'http://localhost:3000'}/auth/register?token=${token}`
+    const { sendInviteEmail } = await import('#/lib/email')
+    await sendInviteEmail(data.email, link)
     return { token, link }
   })
 
 export const Route = createFileRoute('/admin/invites')({
   loader: async () => {
+    const { auth } = await import('#/lib/auth')
     const request = getRequest()
     const session = await auth.api.getSession({ headers: request.headers })
     if (!session) throw redirect({ to: '/auth/login' })
@@ -58,6 +74,7 @@ function InvitesPage() {
   const [invites, setInvites] = useState(initialInvites)
   const [email, setEmail] = useState('')
   const [result, setResult] = useState<{ token: string; link: string } | null>(null)
+  const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -78,78 +95,106 @@ function InvitesPage() {
     }
   }
 
+  function copyLink() {
+    if (!result) return
+    navigator.clipboard.writeText(result.link).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    })
+  }
+
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Einladungen verwalten</h1>
+    <PageContainer size="md">
+      <PageHeader
+        eyebrow="Admin"
+        title="Einladungen"
+        subtitle="Versende und verwalte Registrierungs-Einladungen."
+      />
 
-      <form onSubmit={handleSend} className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 mb-6">
-        <h2 className="font-semibold mb-4">Neue Einladung</h2>
-        <div className="flex gap-3">
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="email@beispiel.de"
-            className="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-yellow-500"
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2 bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-black font-bold rounded-lg transition-colors"
-          >
-            {loading ? '…' : 'Einladen'}
-          </button>
+      <Card className="p-6 mb-6">
+        <h2 className="font-board uppercase tracking-wider text-lg text-ink-50 mb-4">
+          Neue Einladung
+        </h2>
+        <form onSubmit={handleSend} className="flex flex-col gap-4">
+          <FormField label="E-Mail-Adresse" error={error || undefined}>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500 pointer-events-none" />
+                <Input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="email@beispiel.de"
+                  className="pl-10"
+                />
+              </div>
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={loading}
+                leading={<Send className="w-4 h-4" />}
+              >
+                {loading ? 'Sende…' : 'Senden'}
+              </Button>
+            </div>
+          </FormField>
+
+          {result && (
+            <div className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-4">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-cyan-400 font-bold mb-2">
+                Einladungslink
+              </p>
+              <p className="text-cyan-300 text-sm break-all font-mono">{result.link}</p>
+              <button
+                type="button"
+                onClick={copyLink}
+                className="mt-3 inline-flex items-center gap-1.5 text-xs text-ink-200 hover:text-cyan-300 transition-colors"
+              >
+                {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                {copied ? 'Kopiert' : 'In Zwischenablage kopieren'}
+              </button>
+            </div>
+          )}
+        </form>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <div className="px-5 py-3 border-b border-bg-700">
+          <p className="font-board uppercase tracking-wider text-sm text-ink-50">
+            Verlauf
+          </p>
         </div>
-        {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
-        {result && (
-          <div className="mt-3 p-3 bg-neutral-800 rounded-lg">
-            <p className="text-sm text-neutral-400 mb-1">Einladungslink:</p>
-            <p className="text-yellow-400 text-sm break-all font-mono">{result.link}</p>
-            <button
-              type="button"
-              onClick={() => navigator.clipboard.writeText(result.link)}
-              className="mt-2 text-xs text-neutral-400 hover:text-white transition-colors"
-            >
-              In Zwischenablage kopieren
-            </button>
-          </div>
-        )}
-      </form>
-
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-neutral-800 text-neutral-400">
-            <tr>
-              <th className="px-4 py-2 text-left">E-Mail</th>
-              <th className="px-4 py-2 text-left">Status</th>
-              <th className="px-4 py-2 text-left">Ablauf</th>
-            </tr>
-          </thead>
-          <tbody>
-            {invites.map(inv => (
-              <tr key={inv.id} className="border-t border-neutral-800">
-                <td className="px-4 py-2">{inv.email}</td>
-                <td className="px-4 py-2">
-                  {inv.usedAt ? (
-                    <span className="text-green-400">Genutzt</span>
-                  ) : new Date(inv.expiresAt) < new Date() ? (
-                    <span className="text-red-400">Abgelaufen</span>
+        {invites.length === 0 ? (
+          <p className="p-6 text-center text-ink-500 text-sm">Noch keine Einladungen</p>
+        ) : (
+          <ul className="divide-y divide-bg-700">
+            {invites.map(inv => {
+              const used = !!inv.usedAt
+              const expired = !used && new Date(inv.expiresAt) < new Date()
+              return (
+                <li
+                  key={inv.id}
+                  className="flex items-center gap-3 px-5 py-3"
+                >
+                  <Mail className="w-4 h-4 text-ink-500 shrink-0" />
+                  <span className="text-sm text-ink-50 flex-1 truncate">{inv.email}</span>
+                  {used ? (
+                    <Pill tone="good">Genutzt</Pill>
+                  ) : expired ? (
+                    <Pill tone="bad">Abgelaufen</Pill>
                   ) : (
-                    <span className="text-yellow-400">Offen</span>
+                    <Pill tone="amber">Offen</Pill>
                   )}
-                </td>
-                <td className="px-4 py-2 text-neutral-400">
-                  {new Date(inv.expiresAt).toLocaleDateString('de-DE')}
-                </td>
-              </tr>
-            ))}
-            {invites.length === 0 && (
-              <tr><td colSpan={3} className="px-4 py-4 text-center text-neutral-500">Noch keine Einladungen</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+                  <span className="text-xs text-ink-500 tabular-nums shrink-0">
+                    {new Date(inv.expiresAt).toLocaleDateString('de-DE')}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </Card>
+    </PageContainer>
   )
 }

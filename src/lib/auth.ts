@@ -10,6 +10,10 @@ export const auth = betterAuth({
     provider: 'sqlite',
     schema,
   }),
+  trustedOrigins: [
+    'http://localhost:3000',
+    'http://192.168.178.21:3000',
+  ],
   emailAndPassword: {
     enabled: true,
   },
