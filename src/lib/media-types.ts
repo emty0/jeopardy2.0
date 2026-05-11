@@ -13,7 +13,7 @@ export function isAudio(type: string | null | undefined): boolean {
 }
 
 export function isEditable(type: string | null | undefined): boolean {
-  return isImage(type) || isVideo(type)
+  return isImage(type) || isVideo(type) || isAudio(type)
 }
 
 export function mediaTypeFromMime(mime: string): MediaType {

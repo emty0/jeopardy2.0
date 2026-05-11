@@ -78,6 +78,11 @@ Workflow für neue Spalten:
 > - `question.show_media_on_player` (INTEGER NOT NULL DEFAULT 0)
 > - `question.media_placeholder` (INTEGER NOT NULL DEFAULT 0)
 > - `question_media.role` (TEXT NOT NULL DEFAULT `'question'`) — `'question' | 'answer'`
+> - `game_session.winner_player_id`, `started_at`, `total_questions`, `answered_count`
+> - `question_attempt.attempt_order`, `no_penalty_applied`, `was_rapid_fire`, `revealed_media_index_at_buzz`, `reaction_ms`
+> - `buzz_log.revealed_at`, `reaction_ms`
+> - `answered_question.resolution` (`'solved' | 'skipped' | 'rapid_fire' | 'unanswered'`), `solved_at`, `first_solver_player_id`
+> - **Neue Tabellen**: `game_event` (volles Audit-Log), `question_reveal` (Frage-Reveal-Timestamps)
 
 ---
 
@@ -119,19 +124,27 @@ Nach jedem Bild- oder Video-Upload im Quiz-Editor öffnet automatisch ein Mini-E
 - "Speichern" lädt finalen Canvas als PNG via `/api/upload` → ersetzt URL im `mediaItems[idx]`.
 
 ### Videos (server-seitig via FFmpeg)
-- Endpoint: `server/routes/api/media/process.ts` — POST `{ url, trim?, resizeHeight?, extractAudio? }` → `{ url, type }`.
+- Endpoint: `server/routes/api/media/process.ts` — POST `{ url, trim?, resizeHeight?, extractAudio?, audioFx? }` → `{ url, type }`.
 - Nutzt `fluent-ffmpeg` + `ffmpeg-static` (FFmpeg-Binary kommt als npm-Paket, kein System-Install).
 - Operationen kombinierbar in einem Aufruf (Trim + Resize gleichzeitig).
 - Resize via `-vf scale=-2:HEIGHT` (Breite auf gerade Zahl gerundet für libx264).
 - Audio-Extract → `.mp3` (libmp3lame, 192k); Antwort-`type` wechselt automatisch auf `'audio'`.
 - Upload-Limit liegt bei **200 MB** (Image/Audio/Video, in `server/routes/api/upload.ts`).
 
+### Audio (server-seitig via FFmpeg)
+- Gleiches Endpoint wie Video. Audio-Pipeline wird automatisch aktiviert wenn Input eine Audio-Datei ist (`.mp3 .wav .ogg .m4a .aac .flac .opus`) **oder** `extractAudio: true` **oder** ein `audioFx` mitgeschickt wird.
+- `audioFx`-Parameter: `{ reverse?: boolean, pitchSemitones?: number (-12..12), speed?: number (0.5..2) }`. Server clampt `speed` intern auf `[0.25, 4]` und kettet mehrere `atempo`-Stufen, falls außerhalb `[0.5, 2.0]`.
+- Filter-Reihenfolge: Pitch (`asetrate=44100*p, aresample=44100, atempo=1/p` → Tonhöhe ohne Dauer-Änderung) → Speed (`atempo=s` → Dauer ohne Tonhöhen-Änderung) → `areverse`.
+- Trim wird **vor** dem Filter angewendet (`-ss`/`-t`), funktioniert kombiniert mit den Effekten.
+- Output immer `.mp3` (libmp3lame, 192k).
+
 ### Helper
 - `src/lib/canvas-utils.ts` — `loadImage`, `pixelateRegion`, `getCroppedBlob`, `canvasToBlob`, `uploadBlob`.
 - `src/lib/media-types.ts` — `MediaType`, `isImage/isVideo/isAudio/isEditable`, `mediaTypeFromMime`.
 
 ### Bekannte Limits
-- Audio-Dateien sind in Phase 1 nicht editierbar (Editor öffnet nicht für `audio`).
+- Audio-Editor (`AudioEditor`): Trim, Reverse, Pitch (Halbtöne, dauer-erhaltend), Speed (tonhöhen-erhaltend). Keine browser-seitige Live-Preview der Effekte — Ergebnis erst nach „Speichern" hörbar.
+- YouTube-Medien sind weiterhin nicht editierbar (`isEditable` schließt `'youtube'` aus).
 - FFmpeg-Job ist sync — sehr lange Videos (>5 min Verarbeitung) können HTTP-Timeout treffen. Loading-State im Modal zeigt "Verarbeite…".
 - `public/uploads/` sammelt Original + bearbeitete Versionen, kein GC implementiert.
 
@@ -278,7 +291,15 @@ Jeder Spieler bekommt beim Join eine eindeutige Farbe aus einer 10er-Palette zug
 - `QuestionStage` Overlay bei aktiver Frage (Phase QUESTION_OPEN/JUDGING/ANSWER_REVEALED)
 - Media-Carousel für mehrere Medien pro Frage; **Autoplay** richtet sich nach `autoplayMedia`-Flag der Frage
 - **Auto-Advance bei Reveal**: Sobald `revealedMediaIndex` wächst (Master gibt nächstes Medium frei), springt der Carousel automatisch auf den neuen Slide — kein manueller Klick nötig. Manuelle Navigation (Pfeile/Dots) deaktiviert Autoplay für die Sitzung des aktuellen Carousels.
-- **Vollbild**: Jeder Carousel hat ein Maximize-Icon (oben rechts). Klick → CSS-Overlay (`fixed inset-0 z-[200] bg-black/95`), Esc beendet. Auf Audio nicht aktiv. Steuerung via `allowFullscreen`-Prop (Default `true`).
+- **Vollbild** (`MediaCarousel`): Maximize-Icon (oben rechts) + **Esc-Shortcut** triggern medien-spezifisch:
+  - **YouTube** → `iframeEl.requestFullscreen()` auf dem YT-Iframe (native YT-Vollbild; `enablejsapi=1` gesetzt). `YoutubeEmbed` exportiert `YoutubeEmbedHandle` (`forwardRef` + `useImperativeHandle`).
+  - **MP4-Video** → `videoEl.requestFullscreen()` (native Browser-Fullscreen mit nativen Controls).
+  - **Bild** → `ImageZoomPopup` (`src/components/ui/ImageZoomPopup.tsx`): Auto-Zoom für kleine Bilder, Wheel-Zoom, Pointer-Drag-Pan, Reset, Esc schließt.
+  - **Audio** → kein Vollbild.
+  - YT-Iframe und `<video>` rendern mit nativen Controls — User kann direkt klicken um zu pausieren/spulen.
+  - Esc-Handler split keydown/keyup (arm + fire) damit dieselbe Esc-Taste nicht vom OS-Fullscreen-Exit-Shortcut wieder geschlossen wird.
+  - **Bekannte Einschränkung:** Esc-Shortcut funktioniert nur, wenn die Seite Tastatur-Fokus hat (nach dem ersten Klick irgendwohin). Nach F5 oder nach Vollbild-Exit kann Fokus auf URL-Bar bzw. iframe liegen — dann erst irgendwohin klicken, dann geht Esc wieder.
+  - Steuerung via `allowFullscreen`-Prop (Default `true`).
 - **Placeholder-Modus** (`mediaPlaceholder`): TV zeigt zunächst einen Platzhalter-Block statt des Mediums; Master gibt Medien stückweise via „Nächstes Medium freigeben" frei → `revealedMediaIndex` steuert wie viele Medien angezeigt werden
 - Scoreboard in der Kopfzeile (Reihe)
 - Game-Over-Screen mit Rangliste
@@ -351,6 +372,16 @@ Aktiviert per `rapidFire: true` auf einer Frage.
 - Neue Einladung direkt von der Seite versenden
 - Nur zugänglich wenn `user.isAdmin === true`
 
+### Admin-Debug-Ansicht (`src/routes/admin/debug.tsx`)
+
+Reine Client-Seite (kein WebSocket / DB) zum isolierten Testen schwer-manuell-reproduzierbarer Features. Loader-Guard: redirect bei nicht-eingeloggt → `/auth/login`, bei nicht-admin → `/`. Erreichbar via Navbar-Eintrag „Debug" (nur für Admins, neben „Admin").
+
+**Aktueller Tab „Special Events":** drei Spalten — 4 Mock-Spieler mit Slidern für `correctStreak` / `wrongStreak` / `idleQuestionsCount` (Live-Avatar-Preview via `PlayerStatusBadge`), Trigger-Panel mit einem Button pro `SpecialEventType` + Default-Inputs (`streak`, `reactionMs`, `deltaMs`, `pointValue`, `finalStreak`, `categoryName`, `idleCount`) + „Alle durchspielen" + „Clear", und Surface-Preview-Spalte (Tabs Alle/TV/Master/Player) die jede Surface in einer eigenen Box rendert. Self-Spieler-Auswahl steuert den `selfPlayerId`-Filter für die Player-Surface.
+
+**Architektur:** Lokaler `GameState` mit `useState` (players + notifications), `pushNotification` aus `specialEvents.ts` schreibt direkt in den Notifications-Buffer. `EventNotificationOverlay` bekommt `containerMode` (Wrapper `absolute` statt `fixed`, damit die Overlays in den Preview-Boxen bleiben) und `enableSound` (TV-Sound-Toggle, Default off im Container-Modus).
+
+**Erweitern:** Neuer Tab → in `Tab`-Type einen weiteren String aufnehmen, `TabButton` ergänzen, neue Tab-Komponente schreiben. Pattern bleibt: Mock-State + existierende Spielkomponenten unter Kontrolle rendern.
+
 ---
 
 ## Einstellungen (`src/routes/settings.tsx`)
@@ -375,11 +406,12 @@ Aktiviert per `rapidFire: true` auf einer Frage.
 - `Wordmark`
 
 ### `src/components/editor/`
-- `MediaEditorModal` — Wrapper-Modal, dispatched zu Image- oder Video-Editor (Audio/YouTube nicht editierbar)
+- `MediaEditorModal` — Wrapper-Modal, dispatched zu Image-, Video- oder Audio-Editor (YouTube nicht editierbar)
 - `ImageEditor` — Tabs: Zuschneiden (`react-easy-crop`) · Zeichnen · Verpixeln; Master-Canvas wird zwischen Tabs geteilt, Speichern lädt Endresultat als PNG via `/api/upload`
 - `PaintCanvas` — Pointer-basiertes Freihand-Zeichnen, 7 Farben + Stärke 1–40 px, Rückgängig/Löschen, "Auf Bild anwenden" flacht Strokes
 - `PixelateCanvas` — Drag-Rectangle wählt Region, Block-Größe 4–48 px, mehrere Regionen möglich
 - `VideoEditor` — Trim (Start-/End-Slider), Auflösung (Original/1080p/720p/480p), "Nur Audio extrahieren" → POST `/api/media/process`
+- `AudioEditor` — Trim (Start-/End-Slider) + Effekte: Pitch (-12…+12 Halbtöne, dauer-erhaltend), Speed (0.5×…2×, tonhöhen-erhaltend), Reverse-Checkbox; sendet `audioFx` an `/api/media/process`, Output ist immer `.mp3`
 
 ### `src/components/game/`
 - `BoardGrid` — Jeopardy-Board-Raster
@@ -405,6 +437,109 @@ Alle Tokens in `src/styles.css` unter `@theme`:
 - Radius/Shadow Custom-Tokens für Tile, Card, Glow
 
 Animations-Keyframes: `tile-sheen` (verfügbare Kacheln), `breathing-ring` (aktive States).
+
+---
+
+## Stats & Tracking
+
+Jede relevante Spielaktion wird persistiert, damit lustige Statistiken und Career-Stats abgeleitet werden können. Spieler haben **immer einen User-Account**, daher hängen alle Aggregate an `user.id` (via `gamePlayer.userId`).
+
+### Was wird getrackt
+- **`gameEvent`** — Volles Audit-Log. Jeder durch `applyEvent` verarbeitete Event (`START_GAME`, `SELECT_QUESTION`, `START_QUESTION`, `BUZZ`, `JUDGE`, `NEXT_ROUND`, `END_RAPID_FIRE`, `REVEAL_NEXT_MEDIA`, `TOGGLE_NO_PENALTY`, `SKIP_QUESTION`, `VOTE_SKIP`, `PLAYER_CONNECTED/DISCONNECTED`, plus synthetisches `GAME_OVER`) bekommt eine Zeile mit `seq` (lückenlos pro Session), `actorPlayerId/UserId`, `questionId`, JSON-`payload` und `createdAt`. Erlaubt Replay & Ad-hoc-Analysen ohne Schema-Migration.
+- **`questionReveal`** — Pro `(sessionId, questionId)` der Zeitpunkt, an dem die Frage in Phase `QUESTION_OPEN` ging. Wird beim `START_QUESTION`-Event geschrieben und beim `loadGameState` für den aktuellen Question wieder in den In-Memory-Map nachgeladen → Reaktionszeiten überleben Server-Restart.
+- **`questionAttempt`** — pro Buzz/Judge-Aktion: `isCorrect`, `pointsAwarded`, `buzzedAt`, `resolvedAt`, `attemptOrder` (wievielter Versuch auf diese Frage in der Session), `noPenaltyApplied`, `wasRapidFire`, `revealedMediaIndexAtBuzz`, `reactionMs` (denormalisiert).
+- **`buzzLog`** — alle Buzzes mit `revealedAt` + `reactionMs`.
+- **`answeredQuestion`** — `resolution` (`solved | skipped | rapid_fire`), `solvedAt`, `firstSolverPlayerId`.
+- **`gameSession`** — `winnerPlayerId`, `startedAt` (≠ `createdAt`), `totalQuestions`, `answeredCount`.
+
+### Wo lebt was
+- Tracking-Logik: `src/lib/game-state.ts` — Helper `logEvent(sessionId, opts)` schreibt in `gameEvent`. Per-Session-Counter (`seqCounters`) und `questionRevealedAtMap` (für Reaktionszeit) sind In-Memory-Maps **außerhalb** des broadcasteten `GameState`. Beide werden in `loadGameState` aus DB initialisiert.
+- Aggregat-Queries: `src/lib/statsQueries.ts` (server-only — nur dynamisch aus `createServerFn`-Handlern importieren). Funktionen: `getCareerStats(userId)`, `getSessionRecap(sessionId)`, `getHallOfFame()`, `getUserSessionHistory(userId)`.
+
+### UI-Routen
+- `/sessions/$sessionId/recap` — Recap nach Spielende: Score-Verlauf-Chart (Recharts), Highlight-Cards (schnellster Buzz, beste Trefferquote, längste Streak, größter Verlust …), Spieler-Tabelle, Per-Kategorie-Stats, Per-Frage-Details (collapsible).
+- `/stats` — Hall of Fame: globale Top-10-Listen.
+- `/stats/users/$userId` — Career-KPIs + Spiel-Historie (mit Recap-Links).
+
+Game-Over-Screens (Master + TV-Board) verlinken automatisch auf den Recap. Header-Navbar hat einen `/stats`-Eintrag für eingeloggte User.
+
+### Wenn du neue Events hinzufügst
+1. Neues `case` in `applyEvent` → ruf `logEvent(sessionId, { type, actorPlayerId/UserId, questionId, payload })` auf.
+2. Wenn dabei eine neue strukturierte Spalte hinzukommt: Schema + `add-columns.mjs` ergänzen.
+3. Wenn der Event in den Recap soll: `getSessionRecap` in `statsQueries.ts` erweitern.
+
+---
+
+## Special-Event-Notifications
+
+Lustige In-Game-Banner für besondere Spielmomente — sichtbar auf TV (groß + Sound), Master (kompakte Toasts) und Player-Phone (personalisiert, nur eigene Beteiligung).
+
+### Persistente Player-Flags (in `PlayerState`)
+- `correctStreak`: aktuell korrekt-in-Folge. Reset bei falscher Antwort. Inkrementiert in `applyJudgeEffects`.
+- `wrongStreak`: aktuell falsch-in-Folge. Reset bei korrekter Antwort. Bei `noPenaltyApplied=true` unverändert.
+- `idleQuestionsCount`: Fragen seit letzter Interaktion. +1 für alle Nicht-Teilnehmer pro abgeschlossener Frage, Reset auf 0 bei Buzz / VOTE_SKIP / SELECT_QUESTION.
+- Alle drei werden in `loadGameState` aus `questionAttempt`/`buzzLog`-History rekonstruiert → überlebt Server-Restart.
+- Steuern den `PlayerStatusBadge` (Flammen-Ring / Frost-Ring / Zzz-Animation auf Avatar im Scoreboard). Priorität: Fire > Frost > Zzz.
+
+### Ephemere Notifications (in `GameState.eventNotifications`)
+Rolling Buffer (max 8, älter als 6 s wird verworfen). Server pusht via `pushNotification(state, type, payload)` aus `src/lib/specialEvents.ts`. Client (`EventNotificationOverlay`) dedupliziert per `id`, rendert für ~4 s, fadet aus.
+
+### Event-Katalog
+| Type | Trigger | Schwelle |
+|---|---|---|
+| `CLOSE_BUZZ` | Zweitplatzierter buzzert ≤ 500 ms nach Gewinner | `CLOSE_BUZZ_WINDOW_MS=500` |
+| `SPEED_DEMON` | Gewinner-Buzz mit `reactionMs` < Schwelle | `SPEED_DEMON_MS=250` |
+| `ON_FIRE` | Korrekter Judge bringt `correctStreak ≥ 3` (re-trigger bei jedem +1) | `STREAK_THRESHOLD=3` |
+| `COLD_STREAK` | Falscher Judge bringt `wrongStreak ≥ 3` | `STREAK_THRESHOLD=3` |
+| `STREAK_BROKEN` | Falscher Judge nach `prevCorrectStreak ≥ 3` | — |
+| `FIRST_BLOOD` | Erste korrekte Antwort der Session | — |
+| `BIG_SCORE` | Korrekte Antwort auf Frage mit höchstem Punktwert | — |
+| `ROBBED` | Korrekte Antwort, vorheriger Versuch der gleichen Frage war falsch von anderem Spieler | — |
+| `UNDERDOG` | Letzter im Score (mit `≥ 200` Abstand) beantwortet richtig | `UNDERDOG_MIN_GAP=200` |
+| `COMEBACK` | War `≥ 1000` hinter Leader, jetzt `< 200` | `COMEBACK_DEFICIT/RECOVERY` |
+| `AFK` | `idleQuestionsCount` erreicht Schwelle (genau bei Erreichen) | `AFK_THRESHOLD=4` |
+| `PERFECT_CATEGORY` | Kategorie komplett gelöst (alle Fragen mit `solverColors.length > 0`) | — |
+
+Schwellen sind Konstanten in `src/lib/specialEvents.ts`.
+
+### Detection-Hooks in `applyEvent`
+- **`BUZZ`**: ruft `detectBuzzEvents(state, newBuzz, allBuzzes)` → SPEED_DEMON / CLOSE_BUZZ. Markiert Buzzer als Participant.
+- **`JUDGE`**: erfasst `prevCorrectStreak`, `prevWrongStreak`, `prevScore`, `isFirstCorrectInSession`, `isHighestPointValue`, `prevAttemptOnSameQuestionWasWrongByOther` VOR Mutation; ruft `applyJudgeEffects(state, ctx)` für Streak-Updates + alle Judge-bezogenen Notifications. Bei `state.phase === 'ANSWER_REVEALED' || 'GAME_OVER'`: zusätzlich `onQuestionClosed(state, participants, qId)` → AFK + PERFECT_CATEGORY.
+- **`SELECT_QUESTION`**: setzt Participant-Set zurück und markt den auswählenden Spieler.
+- **`VOTE_SKIP`**: markt Voter als Participant.
+- **`SKIP_QUESTION` / `END_RAPID_FIRE`**: `onQuestionClosed` für AFK-Erhöhung der Nicht-Teilnehmer.
+
+### Persistierung im Audit-Log
+Jede neue Notification wird zusätzlich via `logEvent` als `type='SPECIAL_EVENT'` in `gameEvent` gespeichert (Payload: `{ specialType, ...notificationPayload }`). Hilfsfunktion: `persistNewNotifications(sessionId, before, after)`.
+
+### Surfaces
+- **TV** (`board.tsx`): `<EventNotificationOverlay surface="tv" />` — alle Events. Hero-Banner mittig (für ON_FIRE / COLD_STREAK / BIG_SCORE etc.), kompakter Stack unten links für CLOSE_BUZZ / AFK / SPEED_DEMON / ROBBED. **Sound-Trigger** via `new Audio('/sounds/events/*.mp3')` (siehe `public/sounds/events/README.md`).
+- **Master** (`master.tsx`): `<EventNotificationOverlay surface="master" />` — nur `CLOSE_BUZZ` + `AFK` als kompakter Toast oben rechts (z-30, unter dem Header). Kein Sound.
+- **Player** (`play.tsx`): `<EventNotificationOverlay surface="player" selfPlayerId={playerId} />` — personalisiert: filtert auf Notifications, an denen der eigene `playerId` beteiligt ist (via `payload.playerId / winnerPlayerId / loserPlayerId / thiefPlayerId / robbedPlayerId`). Eigener Wortlaut („Du bist on fire!", „Du um 23 ms verpasst"). Toast oben mittig, kein Sound.
+
+### Sound-Slots (TV-only)
+Slots in `public/sounds/events/` (Code referenziert `.mp3`):
+- `on-fire.mp3` — ON_FIRE / STREAK_BROKEN / SPEED_DEMON / BIG_SCORE
+- `cold.mp3` — COLD_STREAK
+- `snore.mp3` — AFK
+- `chime.mp3` — CLOSE_BUZZ / FIRST_BLOOD / UNDERDOG / COMEBACK / ROBBED / PERFECT_CATEGORY
+
+Fehlende Files → `Audio.play()` rejected stillschweigend, kein Crash. User dropped MP3s einfach mit den Slot-Namen rein.
+
+### CSS-Animations in `src/styles.css`
+- `flame-pulse` → `.fx-flame-ring` (Hot-Streak-Avatar-Glow)
+- `frost-shimmer` → `.fx-frost-ring` (Cold-Streak-Avatar-Frost)
+- `zzz-float` → `.fx-zzz` mit `.fx-zzz-delay-1/2` (AFK-Z-Stapel)
+- `banner-slam` → `.fx-banner-slam` (Hero-Banner-Einschlag)
+- `shake-fast` → `.fx-shake` (STREAK_BROKEN / ROBBED)
+- `flame-flicker` → `.fx-flame-flicker` (Flammen-Icons im Banner)
+
+### Wenn du neue Events hinzufügst
+1. `SpecialEventType` in `game-state.ts` erweitern.
+2. Detection in `specialEvents.ts` (entweder neue Funktion oder bestehende erweitern).
+3. Hook in passendem `applyEvent`-Case → `pushNotification` + `persistNewNotifications`.
+4. Visual in `EventNotificationOverlay` ergänzen — `HeroBanner` (TV-groß) und/oder `CompactToast` (Stack), Sound-Mapping in `SOUND_MAP`, ggf. `isHeroEvent` und `isVisibleOnSurface` anpassen.
+5. Diesen Abschnitt updaten.
 
 ---
 

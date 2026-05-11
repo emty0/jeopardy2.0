@@ -232,7 +232,7 @@ function EditQuizPage() {
         if (!prev) return prev
         return { ...prev, mediaItems: prev.mediaItems.map(m => m.id === itemId ? { ...m, url, type } : m) }
       })
-      if (type === 'image' || type === 'video') {
+      if (type === 'image' || type === 'video' || type === 'audio') {
         setEditorTarget({ id: itemId, url, type })
       }
     } catch (e: unknown) {
@@ -561,7 +561,7 @@ function EditQuizPage() {
                     onUpdate={updateMediaItem}
                     onRemove={removeMediaItem}
                     onUpload={handleMediaUpload}
-                    onEdit={(item) => setEditorTarget({ id: item.id, url: item.url, type: item.type as 'image' | 'video' })}
+                    onEdit={(item) => setEditorTarget({ id: item.id, url: item.url, type: item.type as 'image' | 'video' | 'audio' })}
                     uploadingId={uploadingId}
                   />
 
@@ -576,7 +576,7 @@ function EditQuizPage() {
                     onUpdate={updateMediaItem}
                     onRemove={removeMediaItem}
                     onUpload={handleMediaUpload}
-                    onEdit={(item) => setEditorTarget({ id: item.id, url: item.url, type: item.type as 'image' | 'video' })}
+                    onEdit={(item) => setEditorTarget({ id: item.id, url: item.url, type: item.type as 'image' | 'video' | 'audio' })}
                     uploadingId={uploadingId}
                   />
                 </>
@@ -785,7 +785,7 @@ function MediaSection({ label, hint, tone, items, onAdd, onUpdate, onRemove, onU
                 ))}
               </div>
               <div className="ml-auto flex items-center gap-2">
-                {item.url && (item.type === 'image' || item.type === 'video') && (
+                {item.url && (item.type === 'image' || item.type === 'video' || item.type === 'audio') && (
                   <button
                     type="button"
                     onClick={() => onEdit(item)}

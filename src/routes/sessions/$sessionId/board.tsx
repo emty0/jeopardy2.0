@@ -6,8 +6,8 @@ import { getRequest } from '@tanstack/react-start/server'
 import { useGameSocket } from '#/hooks/useGameSocket'
 import { z } from 'zod'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Trophy, Home } from 'lucide-react'
-import { ConnectionGuard, BoardGrid, QuestionStage, Scoreboard } from '#/components/game'
+import { Trophy, Home, Users } from 'lucide-react'
+import {   ConnectionGuard, BoardGrid, QuestionStage, Scoreboard, EventNotificationOverlay, SessionClosedOverlay } from '#/components/game'
 
 const getBoardData = createServerFn({ method: 'GET' })
   .inputValidator(z.object({ sessionId: z.string() }))
@@ -56,6 +56,7 @@ function BoardContent({
 }: {
   state: NonNullable<ReturnType<typeof useGameSocket>['state']>
 }) {
+  const { sessionId } = Route.useParams()
   const buzzedPlayer = state.players.find(p => p.id === state.buzzedPlayerId) ?? null
   const showOverlay =
     (state.phase === 'QUESTION_PREVIEW' ||
@@ -83,12 +84,28 @@ function BoardContent({
             Jeopardy 2.0
           </span>
         </div>
-        <Scoreboard
-          players={state.players}
-          masterId={state.masterId}
-          activePlayerId={state.activePlayerId}
-          mode="row"
-        />
+        <div className="flex items-center gap-3">
+          <Scoreboard
+            players={state.players}
+            masterId={state.masterId}
+            activePlayerId={state.activePlayerId}
+            mode="row"
+          />
+          {state.pendingJoiners && state.pendingJoiners.length > 0 && (
+            <span className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full bg-violet-500/30 border border-violet-400/60 text-violet-100 text-[11px] font-bold" title="Spieler warten auf Freigabe">
+              +{state.pendingJoiners.length}
+            </span>
+          )}
+          <Link
+            to="/sessions/$sessionId"
+            params={{ sessionId }}
+            aria-label="Zurück zur Lobby"
+            title="Zurück zur Lobby (Spieler einladen)"
+            className="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-full bg-bg-800 hover:bg-bg-700 text-ink-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60"
+          >
+            <Users className="w-5 h-5" />
+          </Link>
+        </div>
       </header>
 
       <div className="flex-1 relative overflow-hidden">
@@ -156,6 +173,13 @@ function BoardContent({
                     </motion.div>
                   ))}
               </div>
+              <Link
+                to="/sessions/$sessionId/recap"
+                params={{ sessionId }}
+                className="mt-8 inline-flex items-center gap-2 px-6 py-3 rounded-full bg-violet-500 hover:bg-violet-400 text-bg-950 font-bold text-lg shadow-[var(--shadow-glow-violet)] transition-colors"
+              >
+                Recap ansehen →
+              </Link>
             </motion.div>
           )}
         </AnimatePresence>
@@ -183,6 +207,10 @@ function BoardContent({
           )}
         </AnimatePresence>
       </div>
+
+      <EventNotificationOverlay state={state} surface="tv" />
+
+      {state.phase === 'SESSION_CLOSED' && <SessionClosedOverlay />}
     </div>
   )
 }

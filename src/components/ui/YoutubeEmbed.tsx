@@ -1,5 +1,9 @@
-import { useEffect, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { Play } from 'lucide-react'
+
+export interface YoutubeEmbedHandle {
+  requestFullscreen: () => void
+}
 
 interface YoutubeEmbedProps {
   id: string
@@ -11,17 +15,41 @@ interface YoutubeEmbedProps {
   cropChrome?: boolean
 }
 
-const PARAMS = 'controls=1&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1'
+const PARAMS = 'enablejsapi=1&controls=1&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1'
 
-export function YoutubeEmbed({
+export const YoutubeEmbed = forwardRef<YoutubeEmbedHandle, YoutubeEmbedProps>(function YoutubeEmbed({
   id,
   autoplay = false,
   className = '',
   fullscreen = false,
   cropChrome = true,
-}: YoutubeEmbedProps) {
+}, ref) {
   const [started, setStarted] = useState(autoplay)
   const [thumbSrc, setThumbSrc] = useState(`https://i.ytimg.com/vi/${id}/maxresdefault.jpg`)
+  const [isNativeFs, setIsNativeFs] = useState(false)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    const onFsChange = () => {
+      setIsNativeFs(document.fullscreenElement === iframeRef.current)
+    }
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [])
+
+  useImperativeHandle(ref, () => ({
+    requestFullscreen: () => {
+      if (!started) {
+        setStarted(true)
+        setTimeout(() => {
+          iframeRef.current?.requestFullscreen?.()
+        }, 50)
+        return
+      }
+      iframeRef.current?.requestFullscreen?.()
+    },
+  }), [started])
 
   useEffect(() => {
     if (autoplay) setStarted(true)
@@ -40,6 +68,7 @@ export function YoutubeEmbed({
     return (
       <button
         type="button"
+        ref={buttonRef}
         onClick={() => setStarted(true)}
         aria-label="Video abspielen"
         className={`relative ${sizing} ${className} group bg-black overflow-hidden`}
@@ -65,12 +94,13 @@ export function YoutubeEmbed({
   return (
     <div className={`relative ${sizing} ${className} bg-black overflow-hidden`}>
       <iframe
+        ref={iframeRef}
         src={src}
-        className={cropChrome ? 'absolute left-0 w-full' : 'absolute inset-0 w-full h-full'}
-        style={cropChrome ? { top: '-15%', height: '115%' } : undefined}
-        allow="autoplay; encrypted-media; picture-in-picture"
+        className={cropChrome && !isNativeFs ? 'absolute left-0 w-full' : 'absolute inset-0 w-full h-full'}
+        style={cropChrome && !isNativeFs ? { top: '-15%', height: '115%' } : undefined}
+        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
         allowFullScreen
       />
     </div>
   )
-}
+})

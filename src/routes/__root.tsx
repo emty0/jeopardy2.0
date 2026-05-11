@@ -18,8 +18,8 @@ import { z } from 'zod'
 import { nanoid } from 'nanoid'
 import { getRequest } from '@tanstack/react-start/server'
 import { motion } from 'framer-motion'
-import { Plus, Mail, Settings as SettingsIcon, LogOut, Library, Sparkles, ShieldCheck, Radio, X as XIcon } from 'lucide-react'
-import { Button, IconButton, Modal, FormField, Input, Wordmark, Pill } from '#/components/ui'
+import { Plus, Mail, Settings as SettingsIcon, LogOut, Library, Sparkles, ShieldCheck, Radio, X as XIcon, BarChart3, FlaskConical } from 'lucide-react'
+import { Button, IconButton, Modal, FormField, Input, Wordmark } from '#/components/ui'
 import { Avatar } from '#/components/game/Scoreboard'
 
 const getActiveGame = createServerFn({ method: 'GET' }).handler(async () => {
@@ -31,6 +31,13 @@ const getActiveGame = createServerFn({ method: 'GET' }).handler(async () => {
   const session = await auth.api.getSession({ headers: request.headers })
   if (!session) return null
 
+  const asMaster = await db
+    .select({ id: gameSession.id })
+    .from(gameSession)
+    .where(and(eq(gameSession.masterId, session.user.id), ne(gameSession.status, 'finished')))
+    .get()
+  if (asMaster) return { sessionId: asMaster.id, isMaster: true }
+
   const asPlayer = await db
     .select({ sessionId: gamePlayer.sessionId })
     .from(gamePlayer)
@@ -38,13 +45,6 @@ const getActiveGame = createServerFn({ method: 'GET' }).handler(async () => {
     .where(and(eq(gamePlayer.userId, session.user.id), ne(gameSession.status, 'finished')))
     .get()
   if (asPlayer) return { sessionId: asPlayer.sessionId, isMaster: false }
-
-  const asMaster = await db
-    .select({ id: gameSession.id })
-    .from(gameSession)
-    .where(and(eq(gameSession.masterId, session.user.id), ne(gameSession.status, 'finished')))
-    .get()
-  if (asMaster) return { sessionId: asMaster.id, isMaster: true }
 
   return null
 })
@@ -67,7 +67,7 @@ const leaveSession = createServerFn({ method: 'POST' })
     if (gs.masterId === session.user.id) {
       await db
         .update(gameSession)
-        .set({ status: 'finished', finishedAt: new Date() })
+        .set({ status: 'finished', currentState: 'SESSION_CLOSED', finishedAt: new Date() })
         .where(eq(gameSession.id, data.sessionId))
     } else {
       await db
@@ -75,6 +75,8 @@ const leaveSession = createServerFn({ method: 'POST' })
         .where(and(eq(gamePlayer.sessionId, data.sessionId), eq(gamePlayer.userId, session.user.id)))
     }
     gameStateMap.delete(data.sessionId)
+    const { broadcastState } = await import('#/lib/game-state')
+    await broadcastState(data.sessionId)
   })
 
 const quickInvite = createServerFn({ method: 'POST' })
@@ -194,6 +196,40 @@ function InviteModal({ open, onClose }: { open: boolean; onClose: () => void }) 
   )
 }
 
+function ConfirmModal({
+  open,
+  onCancel,
+  onConfirm,
+  title,
+  description,
+  confirmLabel = 'Bestätigen',
+  confirmVariant = 'danger',
+}: {
+  open: boolean
+  onCancel: () => void
+  onConfirm: () => void
+  title: string
+  description: string
+  confirmLabel?: string
+  confirmVariant?: 'danger' | 'primary'
+}) {
+  return (
+    <Modal open={open} onClose={onCancel} title={title} size="sm">
+      <div className="px-5 py-5 flex flex-col gap-4">
+        <p className="text-ink-200 text-sm">{description}</p>
+        <div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={onCancel}>
+            Abbrechen
+          </Button>
+          <Button variant={confirmVariant} onClick={onConfirm}>
+            {confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 function RootComponent() {
   const location = useLocation()
   const isGame = isGameRoute(location.pathname)
@@ -213,6 +249,8 @@ function RootComponent() {
 function Chrome() {
   const { data: session, isPending } = authClient.useSession()
   const [showInvite, setShowInvite] = useState(false)
+  const [showMasterCloseConfirm, setShowMasterCloseConfirm] = useState(false)
+  const [showPlayerLeaveConfirm, setShowPlayerLeaveConfirm] = useState(false)
   const [activeGame, setActiveGame] = useState<{ sessionId: string; isMaster: boolean } | null>(
     null,
   )
@@ -233,22 +271,59 @@ function Chrome() {
     setMenuOpen(false)
   }, [location.pathname])
 
+  function handleLeaveActive() {
+    if (!activeGame) return
+    if (activeGame.isMaster) {
+      setShowMasterCloseConfirm(true)
+    } else {
+      setShowPlayerLeaveConfirm(true)
+    }
+  }
+
+  async function handleConfirmMasterClose() {
+    if (!activeGame) return
+    await leaveSession({ data: { sessionId: activeGame.sessionId } })
+    setShowMasterCloseConfirm(false)
+    setActiveGame(null)
+  }
+
+  async function handleConfirmPlayerLeave() {
+    if (!activeGame) return
+    await leaveSession({ data: { sessionId: activeGame.sessionId } })
+    setShowPlayerLeaveConfirm(false)
+    setActiveGame(null)
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-bg-950 text-ink-50">
       <Header
         session={session}
         isPending={isPending}
         activeGame={activeGame}
-        onLeaveActive={async () => {
-          if (!activeGame) return
-          await leaveSession({ data: { sessionId: activeGame.sessionId } })
-          setActiveGame(null)
-        }}
+        onLeaveActive={handleLeaveActive}
         onInvite={() => setShowInvite(true)}
         menuOpen={menuOpen}
         setMenuOpen={setMenuOpen}
       />
       <InviteModal open={showInvite} onClose={() => setShowInvite(false)} />
+      <ConfirmModal
+        open={showMasterCloseConfirm}
+        onCancel={() => setShowMasterCloseConfirm(false)}
+        onConfirm={handleConfirmMasterClose}
+        title="Quiz beenden?"
+        description="Das bestehende Quiz wird für alle Spieler sofort beendet."
+        confirmLabel="Beenden"
+        confirmVariant="danger"
+      />
+      <ConfirmModal
+        open={showPlayerLeaveConfirm}
+        onCancel={() => setShowPlayerLeaveConfirm(false)}
+        onConfirm={handleConfirmPlayerLeave}
+        title="Session verlassen?"
+        description="Möchtest du das laufende Spiel wirklich verlassen?"
+        confirmLabel="Verlassen"
+        confirmVariant="primary"
+      />
       <main className="flex-1 relative">
         <BackgroundDecor />
         <div className="relative z-10">
@@ -317,6 +392,9 @@ function Header({
               <NavLink to="/sessions/new" icon={<Plus className="w-4 h-4" />}>
                 Spielen
               </NavLink>
+              <NavLink to="/stats" icon={<BarChart3 className="w-4 h-4" />}>
+                Statistiken
+              </NavLink>
               <button
                 type="button"
                 onClick={onInvite}
@@ -326,9 +404,14 @@ function Header({
                 Einladen
               </button>
               {isAdmin && (
-                <NavLink to="/admin/invites" icon={<ShieldCheck className="w-4 h-4" />}>
-                  Admin
-                </NavLink>
+                <>
+                  <NavLink to="/admin/invites" icon={<ShieldCheck className="w-4 h-4" />}>
+                    Admin
+                  </NavLink>
+                  <NavLink to="/admin/debug" icon={<FlaskConical className="w-4 h-4" />}>
+                    Debug
+                  </NavLink>
+                </>
               )}
             </nav>
 
@@ -392,6 +475,9 @@ function Header({
             <MobileLink to="/sessions/new" icon={<Plus className="w-4 h-4" />}>
               Spiel starten
             </MobileLink>
+            <MobileLink to="/stats" icon={<BarChart3 className="w-4 h-4" />}>
+              Statistiken
+            </MobileLink>
             <button
               type="button"
               onClick={() => {
@@ -404,9 +490,14 @@ function Header({
               Einladen
             </button>
             {isAdmin && (
-              <MobileLink to="/admin/invites" icon={<ShieldCheck className="w-4 h-4" />}>
-                Admin
-              </MobileLink>
+              <>
+                <MobileLink to="/admin/invites" icon={<ShieldCheck className="w-4 h-4" />}>
+                  Admin
+                </MobileLink>
+                <MobileLink to="/admin/debug" icon={<FlaskConical className="w-4 h-4" />}>
+                  Debug
+                </MobileLink>
+              </>
             )}
             <div className="my-1 h-px bg-bg-800" />
             <MobileLink to="/settings" icon={<SettingsIcon className="w-4 h-4" />}>

@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import type { PlayerState } from '#/lib/game-state'
 import { formatPoints, initials } from '#/lib/format'
+import { PlayerStatusBadge } from './PlayerStatusBadge'
 
 interface ScoreboardProps {
   players: PlayerState[]
@@ -33,7 +34,7 @@ export function Scoreboard({
               transition={{ type: 'spring', stiffness: 380, damping: 32 }}
               className="flex items-center gap-2.5 shrink-0"
             >
-              <Avatar name={p.displayName} active={active} connected={p.isConnected} />
+              <Avatar name={p.displayName} active={active} connected={p.isConnected} player={p} />
               <div className="leading-tight">
                 <p
                   className={`text-[11px] uppercase tracking-wider truncate max-w-[7rem] ${
@@ -102,7 +103,7 @@ export function Scoreboard({
             }`}
           >
             <span className="text-ink-500 text-xs font-bold w-4 tabular-nums">{i + 1}</span>
-            <Avatar name={p.displayName} active={active} connected={p.isConnected} size="sm" />
+            <Avatar name={p.displayName} active={active} connected={p.isConnected} size="sm" player={p} />
             <span
               className={`flex-1 truncate text-sm font-semibold ${
                 isSelf ? 'text-cyan-300' : 'text-ink-50'
@@ -130,9 +131,11 @@ interface AvatarProps {
   active?: boolean
   connected?: boolean
   size?: 'sm' | 'md'
+  /** Optional: Spieler-Daten zur Anzeige des Status-Badges (Flammen / Frost / Zzz). */
+  player?: PlayerState
 }
 
-export function Avatar({ name, active = false, connected = true, size = 'md' }: AvatarProps) {
+export function Avatar({ name, active = false, connected = true, size = 'md', player }: AvatarProps) {
   const dim = size === 'sm' ? 'w-7 h-7 text-[10px]' : 'w-9 h-9 text-xs'
   return (
     <div className="relative shrink-0">
@@ -148,6 +151,7 @@ export function Avatar({ name, active = false, connected = true, size = 'md' }: 
           connected ? 'bg-good' : 'bg-bg-600'
         }`}
       />
+      {player && <PlayerStatusBadge player={player} size={size} />}
     </div>
   )
 }

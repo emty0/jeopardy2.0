@@ -3,14 +3,17 @@ import { useState } from 'react'
 import { authClient } from '#/lib/auth-client'
 import { motion } from 'framer-motion'
 import { Mail, Lock } from 'lucide-react'
+import { z } from 'zod'
 import { Button, FormField, Input, Wordmark } from '#/components/ui'
 
 export const Route = createFileRoute('/auth/login')({
   component: LoginPage,
+  validateSearch: z.object({ redirect: z.string().optional() }),
 })
 
 function LoginPage() {
   const navigate = useNavigate()
+  const { redirect } = Route.useSearch()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -25,6 +28,8 @@ function LoginPage() {
       setLoading(false)
       if (result.error) {
         setError(`Fehler: ${result.error.message ?? result.error.status ?? 'Unbekannt'}`)
+      } else if (redirect && redirect.startsWith('/')) {
+        window.location.href = redirect
       } else {
         await navigate({ to: '/' })
       }

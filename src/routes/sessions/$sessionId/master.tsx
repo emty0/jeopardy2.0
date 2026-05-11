@@ -5,9 +5,10 @@ import { eq, and } from 'drizzle-orm'
 import { getRequest } from '@tanstack/react-start/server'
 import { useGameSocket } from '#/hooks/useGameSocket'
 import { useState } from 'react'
+import type { PlayerState } from '#/lib/game-state'
 import { z } from 'zod'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bell, Hourglass, Trophy, ListChecks, Home, Tv } from 'lucide-react'
+import { Bell, Hourglass, Trophy, ListChecks, Home, Tv, Plus, Minus } from 'lucide-react'
 import {
   ConnectionGuard,
   PhaseBadge,
@@ -15,8 +16,10 @@ import {
   MasterAnswerCard,
   JudgeBar,
   QuestionPicker,
+  EventNotificationOverlay,
+  SessionClosedOverlay,
 } from '#/components/game'
-import { Card, Pill, Sheet } from '#/components/ui'
+import { Card, Pill, Sheet, Input } from '#/components/ui'
 import { formatPoints } from '#/lib/format'
 
 const getMasterData = createServerFn({ method: 'GET' })
@@ -51,6 +54,7 @@ function MasterView() {
   const { playerId, masterId } = Route.useLoaderData()
   const { state, send, connected } = useGameSocket(sessionId, playerId)
   const [overrideOpen, setOverrideOpen] = useState(false)
+  const [overrideTab, setOverrideTab] = useState<'question' | 'score' | 'settings'>('question')
 
   return (
     <ConnectionGuard ready={!!state}>
@@ -62,6 +66,8 @@ function MasterView() {
           connected={connected}
           overrideOpen={overrideOpen}
           setOverrideOpen={setOverrideOpen}
+          overrideTab={overrideTab}
+          setOverrideTab={setOverrideTab}
         />
       )}
     </ConnectionGuard>
@@ -75,6 +81,8 @@ interface MasterContentProps {
   connected: boolean
   overrideOpen: boolean
   setOverrideOpen: (v: boolean) => void
+  overrideTab: 'question' | 'score' | 'settings'
+  setOverrideTab: (v: 'question' | 'score' | 'settings') => void
 }
 
 function MasterContent({
@@ -84,8 +92,11 @@ function MasterContent({
   connected,
   overrideOpen,
   setOverrideOpen,
+  overrideTab,
+  setOverrideTab,
 }: MasterContentProps) {
   const { sessionId } = Route.useParams()
+  const [confirmClose, setConfirmClose] = useState(false)
   const nonMasterPlayers = state.players.filter(p => p.userId !== masterId)
   const buzzedPlayer = state.players.find(p => p.id === state.buzzedPlayerId)
   const activePlayer = state.players.find(p => p.id === state.activePlayerId)
@@ -166,6 +177,8 @@ function MasterContent({
           mode="row"
         />
       </header>
+
+      <PendingJoinBanner pending={state.pendingJoiners ?? []} send={send} />
 
       <main className="flex-1 overflow-y-auto px-4 py-5 flex flex-col gap-4">
         <AnimatePresence mode="wait">
@@ -343,6 +356,13 @@ function MasterContent({
                   activePlayerId={state.activePlayerId}
                   mode="list"
                 />
+                <Link
+                  to="/sessions/$sessionId/recap"
+                  params={{ sessionId }}
+                  className="mt-2 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-violet-500 hover:bg-violet-400 text-bg-950 font-bold shadow-[var(--shadow-glow-violet)] transition-colors"
+                >
+                  Recap ansehen →
+                </Link>
               </div>
             )}
           </motion.div>
@@ -375,24 +395,268 @@ function MasterContent({
         onNext={() => send('NEXT_ROUND', {})}
       />
 
+      <EventNotificationOverlay state={state} surface="master" />
+
+      {state.phase === 'SESSION_CLOSED' && <SessionClosedOverlay />}
+
       <Sheet
         open={overrideOpen}
         onClose={() => setOverrideOpen(false)}
-        title="Frage manuell wählen"
+        title="Override"
       >
-        <div className="px-4 py-2">
-          <p className="text-xs text-ink-300 mb-3">
-            Override – springt direkt in die ausgewählte Frage.
-          </p>
-          <QuestionPicker
-            board={state.board}
-            onPick={qid => {
-              send('SELECT_QUESTION', { questionId: qid })
-              setOverrideOpen(false)
-            }}
-          />
+        <div className="px-4 py-2 flex flex-col h-full">
+          <div className="flex gap-2 mb-4 shrink-0">
+            <button
+              type="button"
+              onClick={() => setOverrideTab('question')}
+              className={[
+                'flex-1 h-9 rounded-lg text-xs font-bold transition-colors',
+                overrideTab === 'question'
+                  ? 'bg-violet-500 text-white'
+                  : 'bg-bg-800 text-ink-300 hover:bg-bg-700',
+              ].join(' ')}
+            >
+              Frage
+            </button>
+            <button
+              type="button"
+              onClick={() => setOverrideTab('score')}
+              className={[
+                'flex-1 h-9 rounded-lg text-xs font-bold transition-colors',
+                overrideTab === 'score'
+                  ? 'bg-violet-500 text-white'
+                  : 'bg-bg-800 text-ink-300 hover:bg-bg-700',
+              ].join(' ')}
+            >
+              Punkte
+            </button>
+            <button
+              type="button"
+              onClick={() => setOverrideTab('settings')}
+              className={[
+                'flex-1 h-9 rounded-lg text-xs font-bold transition-colors',
+                overrideTab === 'settings'
+                  ? 'bg-violet-500 text-white'
+                  : 'bg-bg-800 text-ink-300 hover:bg-bg-700',
+              ].join(' ')}
+            >
+              Einstellungen
+            </button>
+          </div>
+
+          {overrideTab === 'question' && (
+            <div className="flex-1 overflow-y-auto">
+              <p className="text-xs text-ink-300 mb-3">
+                Override – springt direkt in die ausgewählte Frage.
+              </p>
+              <QuestionPicker
+                board={state.board}
+                onPick={qid => {
+                  send('SELECT_QUESTION', { questionId: qid })
+                  setOverrideOpen(false)
+                }}
+              />
+            </div>
+          )}
+
+          {overrideTab === 'score' && (
+            <ScoreOverridePanel
+              players={nonMasterPlayers}
+              send={send}
+            />
+          )}
+
+          {overrideTab === 'settings' && (
+            <div className="flex-1 overflow-y-auto flex flex-col gap-4">
+              <p className="text-xs text-ink-300">
+                Sitzungseinstellungen.
+              </p>
+              <div className="flex flex-col gap-3">
+                {!confirmClose ? (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmClose(true)}
+                    className="w-full h-11 rounded-xl border font-semibold text-sm transition-colors bg-bad/15 border-bad/40 text-bad hover:bg-bad/25"
+                  >
+                    Session schließen
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs text-ink-300 text-center">
+                      Bist du sicher? Das Quiz wird sofort für alle beendet.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmClose(false)}
+                        className="flex-1 h-10 rounded-lg text-xs font-bold bg-bg-800 text-ink-300 hover:bg-bg-700 transition-colors"
+                      >
+                        Abbrechen
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          send('CLOSE_SESSION', {})
+                          setConfirmClose(false)
+                          setOverrideOpen(false)
+                        }}
+                        className="flex-1 h-10 rounded-lg text-xs font-bold bg-bad hover:bg-bad/80 text-white transition-colors"
+                      >
+                        Beenden
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </Sheet>
+    </div>
+  )
+}
+
+function ScoreOverridePanel({
+  players,
+  send,
+}: {
+  players: PlayerState[]
+  send: (type: string, payload?: Record<string, unknown>) => void
+}) {
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(players[0]?.id ?? null)
+  const [amount, setAmount] = useState('')
+
+  const selectedPlayer = players.find(p => p.id === selectedPlayerId)
+
+  const sendDelta = (delta: number) => {
+    if (!selectedPlayerId) return
+    send('ADJUST_SCORE', { playerId: selectedPlayerId, delta })
+    setAmount('')
+  }
+
+  const handleCustom = (sign: 1 | -1) => {
+    const val = parseInt(amount, 10)
+    if (!Number.isFinite(val) || val <= 0 || !selectedPlayerId) return
+    sendDelta(val * sign)
+  }
+
+  return (
+    <div className="flex flex-col gap-4 flex-1 overflow-y-auto">
+      <p className="text-xs text-ink-300">
+        Wähle einen Spieler und tippe auf + / −.
+      </p>
+
+      <div className="flex flex-col gap-2">
+        {players.map(p => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => setSelectedPlayerId(p.id)}
+            className={[
+              'flex items-center justify-between px-3 py-3 rounded-xl border text-left transition-colors',
+              selectedPlayerId === p.id
+                ? 'bg-violet-500/15 border-violet-500/50'
+                : 'bg-bg-800 border-bg-700 hover:bg-bg-750',
+            ].join(' ')}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span
+                className="w-3 h-3 rounded-full shrink-0"
+                style={{ backgroundColor: p.color }}
+              />
+              <span className="font-semibold text-sm truncate">{p.displayName}</span>
+            </div>
+            <span className="text-sm text-ink-200 tabular-nums shrink-0">
+              {formatPoints(p.score)}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {selectedPlayer && (
+        <div className="flex flex-col gap-3 mt-1 pb-2">
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              inputMode="numeric"
+              placeholder="Betrag"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              className="flex-1"
+            />
+            <button
+              type="button"
+              onClick={() => handleCustom(-1)}
+              disabled={!amount || parseInt(amount, 10) <= 0}
+              className="h-11 w-11 rounded-xl bg-bg-700 hover:bg-bg-600 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center text-ink-50 font-bold shrink-0 transition-colors"
+            >
+              <Minus className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleCustom(1)}
+              disabled={!amount || parseInt(amount, 10) <= 0}
+              className="h-11 w-11 rounded-xl bg-violet-500 hover:bg-violet-400 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold shrink-0 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => sendDelta(-100)}
+              className="flex-1 h-10 rounded-xl bg-bg-700 hover:bg-bg-600 text-ink-50 text-sm font-bold transition-colors"
+            >
+              −100
+            </button>
+            <button
+              type="button"
+              onClick={() => sendDelta(100)}
+              className="flex-1 h-10 rounded-xl bg-violet-500 hover:bg-violet-400 text-white text-sm font-bold transition-colors"
+            >
+              +100
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PendingJoinBanner({
+  pending,
+  send,
+}: {
+  pending: { userId: string; displayName: string }[]
+  send: (type: string, payload?: Record<string, unknown>) => void
+}) {
+  if (!pending.length) return null
+  return (
+    <div className="shrink-0 px-3 pt-2 flex flex-col gap-2">
+      {pending.map(p => (
+        <div
+          key={p.userId}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-violet-500/15 border border-violet-500/40 backdrop-blur-md"
+        >
+          <span className="text-[11px] uppercase tracking-widest text-violet-300">Beitrittsanfrage</span>
+          <span className="font-semibold text-ink-50 truncate flex-1 min-w-0">{p.displayName}</span>
+          <button
+            type="button"
+            onClick={() => send('REJECT_PENDING_JOIN', { userId: p.userId })}
+            className="h-7 px-2 text-[11px] rounded-md bg-bg-700 hover:bg-bg-600 text-ink-200 font-semibold"
+          >
+            Ablehnen
+          </button>
+          <button
+            type="button"
+            onClick={() => send('ADMIT_PENDING_JOIN', { userId: p.userId })}
+            className="h-7 px-2 text-[11px] rounded-md bg-good/80 hover:bg-good text-ink-50 font-semibold"
+          >
+            Akzeptieren
+          </button>
+        </div>
+      ))}
     </div>
   )
 }

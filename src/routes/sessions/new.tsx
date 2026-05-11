@@ -14,6 +14,8 @@ import {
   PageContainer,
   PageHeader,
 } from '#/components/ui'
+import { ConfirmLeaveSessionModal } from '#/components/ui/ConfirmLeaveSessionModal'
+import { parseConflictError } from '#/lib/sessionGuard'
 
 const getQuizzesForSession = createServerFn({ method: 'GET' }).handler(async () => {
   const { auth } = await import('#/lib/auth')
@@ -37,7 +39,7 @@ const getQuizzesForSession = createServerFn({ method: 'GET' }).handler(async () 
 })
 
 const createSession = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ quizId: z.string() }))
+  .inputValidator(z.object({ quizId: z.string(), confirmLeavePrevious: z.boolean().optional() }))
   .handler(async ({ data }) => {
     const { auth } = await import('#/lib/auth')
     const { db } = await import('#/db/index')
@@ -45,6 +47,15 @@ const createSession = createServerFn({ method: 'POST' })
     const request = getRequest()
     const session = await auth.api.getSession({ headers: request.headers })
     if (!session) throw redirect({ to: '/auth/login' })
+
+    const { findActiveSessionForUser, conflictError } = await import('#/lib/sessionGuard')
+    const conflict = await findActiveSessionForUser(session.user.id)
+    if (conflict && !data.confirmLeavePrevious) throw conflictError(conflict)
+    if (conflict && data.confirmLeavePrevious) {
+      const { cleanupSessionForUser, broadcastState } = await import('#/lib/game-state')
+      await cleanupSessionForUser(session.user.id, conflict.sessionId)
+      await broadcastState(conflict.sessionId)
+    }
 
     const joinCode = nanoid(6).toUpperCase()
     const sessionId = nanoid(10)
@@ -82,18 +93,29 @@ function NewSessionPage() {
   const [selectedQuiz, setSelectedQuiz] = useState(preselect ?? '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [conflict, setConflict] = useState<{ sessionId: string; isMaster: boolean } | null>(null)
 
-  async function handleStart(e: React.FormEvent) {
-    e.preventDefault()
+  async function start(confirmLeavePrevious: boolean) {
     if (!selectedQuiz) return
     setLoading(true)
     try {
-      const { sessionId } = await createSession({ data: { quizId: selectedQuiz } })
+      const { sessionId } = await createSession({ data: { quizId: selectedQuiz, confirmLeavePrevious } })
       await navigate({ to: '/sessions/$sessionId', params: { sessionId } })
     } catch (e: unknown) {
+      const c = parseConflictError(e)
+      if (c) {
+        setConflict(c)
+        setLoading(false)
+        return
+      }
       setError(e instanceof Error ? e.message : 'Fehler')
       setLoading(false)
     }
+  }
+
+  async function handleStart(e: React.FormEvent) {
+    e.preventDefault()
+    await start(false)
   }
 
   return (
@@ -180,6 +202,12 @@ function NewSessionPage() {
           </Button>
         )}
       </form>
+
+      <ConfirmLeaveSessionModal
+        open={!!conflict}
+        onCancel={() => setConflict(null)}
+        onConfirm={() => { setConflict(null); void start(true) }}
+      />
     </PageContainer>
   )
 }

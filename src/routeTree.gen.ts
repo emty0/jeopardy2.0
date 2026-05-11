@@ -12,13 +12,17 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as JoinRouteImport } from './routes/join'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as StatsIndexRouteImport } from './routes/stats/index'
 import { Route as QuizzesIndexRouteImport } from './routes/quizzes/index'
 import { Route as SessionsNewRouteImport } from './routes/sessions/new'
 import { Route as QuizzesNewRouteImport } from './routes/quizzes/new'
 import { Route as AuthRegisterRouteImport } from './routes/auth/register'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AdminInvitesRouteImport } from './routes/admin/invites'
+import { Route as AdminDebugRouteImport } from './routes/admin/debug'
 import { Route as SessionsSessionIdIndexRouteImport } from './routes/sessions/$sessionId/index'
+import { Route as StatsUsersUserIdRouteImport } from './routes/stats/users/$userId'
+import { Route as SessionsSessionIdRecapRouteImport } from './routes/sessions/$sessionId/recap'
 import { Route as SessionsSessionIdPlayRouteImport } from './routes/sessions/$sessionId/play'
 import { Route as SessionsSessionIdMasterRouteImport } from './routes/sessions/$sessionId/master'
 import { Route as SessionsSessionIdJoinRouteImport } from './routes/sessions/$sessionId/join'
@@ -39,6 +43,11 @@ const JoinRoute = JoinRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StatsIndexRoute = StatsIndexRouteImport.update({
+  id: '/stats/',
+  path: '/stats/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const QuizzesIndexRoute = QuizzesIndexRouteImport.update({
@@ -71,9 +80,24 @@ const AdminInvitesRoute = AdminInvitesRouteImport.update({
   path: '/admin/invites',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminDebugRoute = AdminDebugRouteImport.update({
+  id: '/admin/debug',
+  path: '/admin/debug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SessionsSessionIdIndexRoute = SessionsSessionIdIndexRouteImport.update({
   id: '/sessions/$sessionId/',
   path: '/sessions/$sessionId/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StatsUsersUserIdRoute = StatsUsersUserIdRouteImport.update({
+  id: '/stats/users/$userId',
+  path: '/stats/users/$userId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionsSessionIdRecapRoute = SessionsSessionIdRecapRouteImport.update({
+  id: '/sessions/$sessionId/recap',
+  path: '/sessions/$sessionId/recap',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SessionsSessionIdPlayRoute = SessionsSessionIdPlayRouteImport.update({
@@ -111,36 +135,44 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/join': typeof JoinRoute
   '/settings': typeof SettingsRoute
+  '/admin/debug': typeof AdminDebugRoute
   '/admin/invites': typeof AdminInvitesRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/quizzes/new': typeof QuizzesNewRoute
   '/sessions/new': typeof SessionsNewRoute
   '/quizzes/': typeof QuizzesIndexRoute
+  '/stats/': typeof StatsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/quizzes/$quizId/edit': typeof QuizzesQuizIdEditRoute
   '/sessions/$sessionId/board': typeof SessionsSessionIdBoardRoute
   '/sessions/$sessionId/join': typeof SessionsSessionIdJoinRoute
   '/sessions/$sessionId/master': typeof SessionsSessionIdMasterRoute
   '/sessions/$sessionId/play': typeof SessionsSessionIdPlayRoute
+  '/sessions/$sessionId/recap': typeof SessionsSessionIdRecapRoute
+  '/stats/users/$userId': typeof StatsUsersUserIdRoute
   '/sessions/$sessionId/': typeof SessionsSessionIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/join': typeof JoinRoute
   '/settings': typeof SettingsRoute
+  '/admin/debug': typeof AdminDebugRoute
   '/admin/invites': typeof AdminInvitesRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/quizzes/new': typeof QuizzesNewRoute
   '/sessions/new': typeof SessionsNewRoute
   '/quizzes': typeof QuizzesIndexRoute
+  '/stats': typeof StatsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/quizzes/$quizId/edit': typeof QuizzesQuizIdEditRoute
   '/sessions/$sessionId/board': typeof SessionsSessionIdBoardRoute
   '/sessions/$sessionId/join': typeof SessionsSessionIdJoinRoute
   '/sessions/$sessionId/master': typeof SessionsSessionIdMasterRoute
   '/sessions/$sessionId/play': typeof SessionsSessionIdPlayRoute
+  '/sessions/$sessionId/recap': typeof SessionsSessionIdRecapRoute
+  '/stats/users/$userId': typeof StatsUsersUserIdRoute
   '/sessions/$sessionId': typeof SessionsSessionIdIndexRoute
 }
 export interface FileRoutesById {
@@ -148,18 +180,22 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/join': typeof JoinRoute
   '/settings': typeof SettingsRoute
+  '/admin/debug': typeof AdminDebugRoute
   '/admin/invites': typeof AdminInvitesRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/quizzes/new': typeof QuizzesNewRoute
   '/sessions/new': typeof SessionsNewRoute
   '/quizzes/': typeof QuizzesIndexRoute
+  '/stats/': typeof StatsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/quizzes/$quizId/edit': typeof QuizzesQuizIdEditRoute
   '/sessions/$sessionId/board': typeof SessionsSessionIdBoardRoute
   '/sessions/$sessionId/join': typeof SessionsSessionIdJoinRoute
   '/sessions/$sessionId/master': typeof SessionsSessionIdMasterRoute
   '/sessions/$sessionId/play': typeof SessionsSessionIdPlayRoute
+  '/sessions/$sessionId/recap': typeof SessionsSessionIdRecapRoute
+  '/stats/users/$userId': typeof StatsUsersUserIdRoute
   '/sessions/$sessionId/': typeof SessionsSessionIdIndexRoute
 }
 export interface FileRouteTypes {
@@ -168,54 +204,66 @@ export interface FileRouteTypes {
     | '/'
     | '/join'
     | '/settings'
+    | '/admin/debug'
     | '/admin/invites'
     | '/auth/login'
     | '/auth/register'
     | '/quizzes/new'
     | '/sessions/new'
     | '/quizzes/'
+    | '/stats/'
     | '/api/auth/$'
     | '/quizzes/$quizId/edit'
     | '/sessions/$sessionId/board'
     | '/sessions/$sessionId/join'
     | '/sessions/$sessionId/master'
     | '/sessions/$sessionId/play'
+    | '/sessions/$sessionId/recap'
+    | '/stats/users/$userId'
     | '/sessions/$sessionId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/join'
     | '/settings'
+    | '/admin/debug'
     | '/admin/invites'
     | '/auth/login'
     | '/auth/register'
     | '/quizzes/new'
     | '/sessions/new'
     | '/quizzes'
+    | '/stats'
     | '/api/auth/$'
     | '/quizzes/$quizId/edit'
     | '/sessions/$sessionId/board'
     | '/sessions/$sessionId/join'
     | '/sessions/$sessionId/master'
     | '/sessions/$sessionId/play'
+    | '/sessions/$sessionId/recap'
+    | '/stats/users/$userId'
     | '/sessions/$sessionId'
   id:
     | '__root__'
     | '/'
     | '/join'
     | '/settings'
+    | '/admin/debug'
     | '/admin/invites'
     | '/auth/login'
     | '/auth/register'
     | '/quizzes/new'
     | '/sessions/new'
     | '/quizzes/'
+    | '/stats/'
     | '/api/auth/$'
     | '/quizzes/$quizId/edit'
     | '/sessions/$sessionId/board'
     | '/sessions/$sessionId/join'
     | '/sessions/$sessionId/master'
     | '/sessions/$sessionId/play'
+    | '/sessions/$sessionId/recap'
+    | '/stats/users/$userId'
     | '/sessions/$sessionId/'
   fileRoutesById: FileRoutesById
 }
@@ -223,18 +271,22 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   JoinRoute: typeof JoinRoute
   SettingsRoute: typeof SettingsRoute
+  AdminDebugRoute: typeof AdminDebugRoute
   AdminInvitesRoute: typeof AdminInvitesRoute
   AuthLoginRoute: typeof AuthLoginRoute
   AuthRegisterRoute: typeof AuthRegisterRoute
   QuizzesNewRoute: typeof QuizzesNewRoute
   SessionsNewRoute: typeof SessionsNewRoute
   QuizzesIndexRoute: typeof QuizzesIndexRoute
+  StatsIndexRoute: typeof StatsIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   QuizzesQuizIdEditRoute: typeof QuizzesQuizIdEditRoute
   SessionsSessionIdBoardRoute: typeof SessionsSessionIdBoardRoute
   SessionsSessionIdJoinRoute: typeof SessionsSessionIdJoinRoute
   SessionsSessionIdMasterRoute: typeof SessionsSessionIdMasterRoute
   SessionsSessionIdPlayRoute: typeof SessionsSessionIdPlayRoute
+  SessionsSessionIdRecapRoute: typeof SessionsSessionIdRecapRoute
+  StatsUsersUserIdRoute: typeof StatsUsersUserIdRoute
   SessionsSessionIdIndexRoute: typeof SessionsSessionIdIndexRoute
 }
 
@@ -259,6 +311,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/stats/': {
+      id: '/stats/'
+      path: '/stats'
+      fullPath: '/stats/'
+      preLoaderRoute: typeof StatsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/quizzes/': {
@@ -303,11 +362,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminInvitesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/debug': {
+      id: '/admin/debug'
+      path: '/admin/debug'
+      fullPath: '/admin/debug'
+      preLoaderRoute: typeof AdminDebugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sessions/$sessionId/': {
       id: '/sessions/$sessionId/'
       path: '/sessions/$sessionId'
       fullPath: '/sessions/$sessionId/'
       preLoaderRoute: typeof SessionsSessionIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/stats/users/$userId': {
+      id: '/stats/users/$userId'
+      path: '/stats/users/$userId'
+      fullPath: '/stats/users/$userId'
+      preLoaderRoute: typeof StatsUsersUserIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sessions/$sessionId/recap': {
+      id: '/sessions/$sessionId/recap'
+      path: '/sessions/$sessionId/recap'
+      fullPath: '/sessions/$sessionId/recap'
+      preLoaderRoute: typeof SessionsSessionIdRecapRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sessions/$sessionId/play': {
@@ -359,18 +439,22 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   JoinRoute: JoinRoute,
   SettingsRoute: SettingsRoute,
+  AdminDebugRoute: AdminDebugRoute,
   AdminInvitesRoute: AdminInvitesRoute,
   AuthLoginRoute: AuthLoginRoute,
   AuthRegisterRoute: AuthRegisterRoute,
   QuizzesNewRoute: QuizzesNewRoute,
   SessionsNewRoute: SessionsNewRoute,
   QuizzesIndexRoute: QuizzesIndexRoute,
+  StatsIndexRoute: StatsIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   QuizzesQuizIdEditRoute: QuizzesQuizIdEditRoute,
   SessionsSessionIdBoardRoute: SessionsSessionIdBoardRoute,
   SessionsSessionIdJoinRoute: SessionsSessionIdJoinRoute,
   SessionsSessionIdMasterRoute: SessionsSessionIdMasterRoute,
   SessionsSessionIdPlayRoute: SessionsSessionIdPlayRoute,
+  SessionsSessionIdRecapRoute: SessionsSessionIdRecapRoute,
+  StatsUsersUserIdRoute: StatsUsersUserIdRoute,
   SessionsSessionIdIndexRoute: SessionsSessionIdIndexRoute,
 }
 export const routeTree = rootRouteImport

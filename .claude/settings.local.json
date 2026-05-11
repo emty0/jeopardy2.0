@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(node scripts/add-columns.mjs)",
+      "Bash(npm install *)",
+      "Bash(npx vite *)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:3456/)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:3456/quizzes)",
+      "Bash(grep -E 'TestQuestionModal|quizzes/\\\\$quizId/edit')",
+      "Read(//c/Users/alexe/AppData/Local/Temp/claude/C--Users-alexe-Jeopardy-2-0-jeopardy2-0/5b4ab9f2-c1ca-4d90-ac0e-e1fb2c9792a4/tasks/**)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(grep -E \"Local:|ready|error\" \"C:\\\\\\\\Users\\\\\\\\alexe\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\claude\\\\\\\\C--Users-alexe-Jeopardy-2-0-jeopardy2-0\\\\\\\\b35af661-a2d1-47c7-aa8c-d12d42e86293\\\\\\\\tasks\\\\\\\\bip2ke2bh.output\")",
+      "Bash(wc -l \"C:/Users/alexe/Jeopardy 2.0/jeopardy2.0/src/routes/sessions/\\\\$sessionId/master.tsx\")",
+      "Bash(grep -n \"import\\\\|Home\\\\|Users\" \"C:/Users/alexe/Jeopardy 2.0/jeopardy2.0/src/routes/sessions/\\\\$sessionId/board.tsx\" | head -20)",
+      "Bash(git stash *)",
+      "Bash(git checkout *)",
+      "Bash(node -e \"const l = require\\('lucide-react'\\); console.log\\(['Mask','Dog','PawPrint','Ghost','Skull','Sword'].map\\(n => n + ': ' + \\(typeof l[n]\\)\\).join\\('\\\\n'\\)\\)\")"
+    ]
+  }
+}

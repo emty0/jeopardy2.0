@@ -6,14 +6,16 @@ import { getRequest } from '@tanstack/react-start/server'
 import { nanoid } from 'nanoid'
 import { Hash } from 'lucide-react'
 import { Button, Wordmark } from '#/components/ui'
+import { ConfirmLeaveSessionModal } from '#/components/ui/ConfirmLeaveSessionModal'
+import { parseConflictError } from '#/lib/sessionGuard'
 
 const joinByCode = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ code: z.string().length(6) }))
-  .handler(async ({ data }) => {
+  .inputValidator(z.object({ code: z.string().length(6), confirmLeavePrevious: z.boolean().optional() }))
+  .handler(async ({ data }): Promise<{ sessionId: string; isMaster: boolean; status: 'joined' | 'pending' }> => {
     const { auth } = await import('#/lib/auth')
     const { db } = await import('#/db/index')
     const { gameSession, gamePlayer } = await import('#/db/schema')
-    const { eq } = await import('drizzle-orm')
+    const { eq, and } = await import('drizzle-orm')
     const request = getRequest()
     const session = await auth.api.getSession({ headers: request.headers })
     if (!session) throw new Error('Nicht angemeldet')
@@ -27,7 +29,6 @@ const joinByCode = createServerFn({ method: 'POST' })
     if (!gs) throw new Error('Ungültiger Code – Session nicht gefunden.')
     if (gs.status === 'finished') throw new Error('Diese Spielrunde ist bereits beendet.')
 
-    const { and } = await import('drizzle-orm')
     const existing = await db
       .select()
       .from(gamePlayer)
@@ -35,6 +36,31 @@ const joinByCode = createServerFn({ method: 'POST' })
       .get()
 
     if (!existing) {
+      const { findActiveSessionForUser, conflictError } = await import('#/lib/sessionGuard')
+      const conflict = await findActiveSessionForUser(session.user.id, gs.id)
+      if (conflict && !data.confirmLeavePrevious) throw conflictError(conflict)
+      if (conflict && data.confirmLeavePrevious) {
+        const { cleanupSessionForUser, broadcastState } = await import('#/lib/game-state')
+        await cleanupSessionForUser(session.user.id, conflict.sessionId)
+        await broadcastState(conflict.sessionId)
+      }
+    }
+
+    const isMaster = gs.masterId === session.user.id
+
+    if (!existing) {
+      // Late-Join → Master-Freigabe abwarten
+      if (gs.status === 'active' && !isMaster) {
+        const { addPendingJoiner, broadcastState } = await import('#/lib/game-state')
+        addPendingJoiner(gs.id, {
+          userId: session.user.id,
+          displayName: session.user.name ?? session.user.email ?? 'Spieler',
+          requestedAt: Date.now(),
+        })
+        await broadcastState(gs.id)
+        return { sessionId: gs.id, isMaster: false, status: 'pending' }
+      }
+
       const { pickPlayerColor } = await import('#/lib/playerColors')
       const others = await db
         .select({ color: gamePlayer.color })
@@ -51,11 +77,14 @@ const joinByCode = createServerFn({ method: 'POST' })
         isConnected: true,
         color,
       })
+      const { broadcastState } = await import('#/lib/game-state')
+      await broadcastState(gs.id)
     }
 
     return {
       sessionId: gs.id,
-      isMaster: gs.masterId === session.user.id,
+      isMaster,
+      status: 'joined',
     }
   })
 
@@ -70,6 +99,7 @@ function JoinPage() {
   const [digits, setDigits] = useState<string[]>(Array(SLOTS).fill(''))
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [conflict, setConflict] = useState<{ sessionId: string; isMaster: boolean } | null>(null)
   const inputs = useRef<Array<HTMLInputElement | null>>([])
 
   const code = digits.join('')
@@ -119,18 +149,29 @@ function JoinPage() {
     inputs.current[focusIdx]?.focus()
   }
 
-  async function submit() {
+  async function submit(confirmLeavePrevious = false) {
     if (!complete) return
     setError('')
     setLoading(true)
     try {
-      const { sessionId, isMaster } = await joinByCode({ data: { code } })
-      if (isMaster) {
-        await navigate({ to: '/sessions/$sessionId/master', params: { sessionId } })
+      const res = await joinByCode({ data: { code, confirmLeavePrevious } })
+      if (res.status === 'pending') {
+        // Master muss bestätigen → Warte-View auf der Session-Join-Seite zeigen
+        await navigate({ to: '/sessions/$sessionId/join', params: { sessionId: res.sessionId }, search: { code } })
+        return
+      }
+      if (res.isMaster) {
+        await navigate({ to: '/sessions/$sessionId/master', params: { sessionId: res.sessionId } })
       } else {
-        await navigate({ to: '/sessions/$sessionId/play', params: { sessionId } })
+        await navigate({ to: '/sessions/$sessionId/play', params: { sessionId: res.sessionId } })
       }
     } catch (e: unknown) {
+      const c = parseConflictError(e)
+      if (c) {
+        setConflict(c)
+        setLoading(false)
+        return
+      }
       setError(e instanceof Error ? e.message : 'Fehler beim Beitreten.')
       setLoading(false)
     }
@@ -185,12 +226,18 @@ function JoinPage() {
             size="lg"
             fullWidth
             disabled={!complete || loading}
-            onClick={submit}
+            onClick={() => submit(false)}
           >
             {loading ? 'Wird beigetreten…' : 'Beitreten'}
           </Button>
         </div>
       </div>
+
+      <ConfirmLeaveSessionModal
+        open={!!conflict}
+        onCancel={() => setConflict(null)}
+        onConfirm={() => { setConflict(null); void submit(true) }}
+      />
     </div>
   )
 }

@@ -21,6 +21,9 @@ const TEST_PLAYER: PlayerState = {
   isConnected: true,
   userId: null,
   color: '#7C3AED',
+  correctStreak: 0,
+  wrongStreak: 0,
+  idleQuestionsCount: 0,
 }
 
 type Mode = 'all' | 'tv' | 'master' | 'player'

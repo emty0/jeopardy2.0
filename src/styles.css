@@ -104,3 +104,106 @@ body {
 .no-scrollbar {
   scrollbar-width: none;
 }
+
+/* ─── Special-Event-Animationen ──────────────────────────────────────────── */
+
+/* Flammen-Glow für Avatar bei Hot-Streak (correctStreak ≥ 3) */
+@keyframes flame-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 2px rgb(245 158 11 / 0.7),
+      0 0 14px 2px rgb(245 158 11 / 0.55),
+      0 0 28px 6px rgb(239 68 68 / 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px rgb(251 191 36 / 0.85),
+      0 0 22px 5px rgb(245 158 11 / 0.7),
+      0 0 40px 10px rgb(239 68 68 / 0.45);
+  }
+}
+.fx-flame-ring {
+  animation: flame-pulse 1.4s ease-in-out infinite;
+  border-radius: 9999px;
+}
+
+/* Frost-Schimmer für Avatar bei Cold-Streak (wrongStreak ≥ 3) */
+@keyframes frost-shimmer {
+  0%, 100% {
+    box-shadow:
+      0 0 0 2px rgb(96 165 250 / 0.7),
+      0 0 14px 2px rgb(125 211 252 / 0.55),
+      0 0 24px 5px rgb(186 230 253 / 0.30);
+    transform: translate(0, 0);
+  }
+  25% { transform: translate(-0.5px, 0.5px); }
+  50% {
+    box-shadow:
+      0 0 0 3px rgb(125 211 252 / 0.85),
+      0 0 22px 5px rgb(96 165 250 / 0.7),
+      0 0 36px 10px rgb(165 180 252 / 0.40);
+    transform: translate(0.5px, -0.5px);
+  }
+  75% { transform: translate(-0.5px, -0.5px); }
+}
+.fx-frost-ring {
+  animation: frost-shimmer 1.6s ease-in-out infinite;
+  border-radius: 9999px;
+}
+
+/* Zzz-Aufstieg für AFK-Spieler */
+@keyframes zzz-float {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.6) rotate(-8deg);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(2px, -4px) scale(0.85) rotate(-4deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(6px, -14px) scale(1) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(10px, -22px) scale(1.05) rotate(6deg);
+  }
+}
+.fx-zzz {
+  animation: zzz-float 2.4s ease-out infinite;
+}
+.fx-zzz-delay-1 { animation-delay: 0.6s; }
+.fx-zzz-delay-2 { animation-delay: 1.2s; }
+
+/* Banner-Einschlag (Slam) — kurzer Bounce-Drop */
+@keyframes banner-slam {
+  0% { opacity: 0; transform: translateY(-30px) scale(0.85); }
+  60% { opacity: 1; transform: translateY(6px) scale(1.05); }
+  80% { transform: translateY(-2px) scale(0.99); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.fx-banner-slam {
+  animation: banner-slam 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Schnelles Wackeln für STREAK_BROKEN / ROBBED */
+@keyframes shake-fast {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px) rotate(-1deg); }
+  40% { transform: translateX(4px) rotate(1deg); }
+  60% { transform: translateX(-3px) rotate(-0.5deg); }
+  80% { transform: translateX(3px) rotate(0.5deg); }
+}
+.fx-shake {
+  animation: shake-fast 0.5s ease-in-out;
+}
+
+/* Flackernde Flammen-Partikel um ON_FIRE-Banner */
+@keyframes flame-flicker {
+  0%, 100% { opacity: 1; transform: translateY(0) scale(1); }
+  50% { opacity: 0.7; transform: translateY(-2px) scale(1.08); }
+}
+.fx-flame-flicker {
+  animation: flame-flicker 0.5s ease-in-out infinite;
+}

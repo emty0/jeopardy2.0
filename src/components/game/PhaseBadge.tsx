@@ -13,6 +13,7 @@ const phaseConfig: Record<
   JUDGING: { label: 'Bewertung', tone: 'cyan' },
   ANSWER_REVEALED: { label: 'Antwort', tone: 'good' },
   GAME_OVER: { label: 'Beendet', tone: 'neutral' },
+  SESSION_CLOSED: { label: 'Beendet', tone: 'bad' },
 }
 
 export function PhaseBadge({ phase }: { phase: GamePhase }) {

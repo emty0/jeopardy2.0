@@ -16,16 +16,22 @@ import {
   PageHeader,
 } from '#/components/ui'
 import { Avatar } from '#/components/game/Scoreboard'
+import { SessionClosedOverlay } from '#/components/game'
 
 const getSessionData = createServerFn({ method: 'GET' })
   .inputValidator(z.object({ sessionId: z.string() }))
   .handler(async ({ data }) => {
     const { auth } = await import('#/lib/auth')
-    const { db } = await import('#/db/index')
-
     const request = getRequest()
     const session = await auth.api.getSession({ headers: request.headers })
-    if (!session) throw redirect({ to: '/auth/login' })
+    if (!session) {
+      const { db } = await import('#/db/index')
+      const gs = await db.select().from(gameSession).where(eq(gameSession.id, data.sessionId)).get()
+      const redirectUrl = gs ? `/sessions/${data.sessionId}/join?code=${gs.joinCode}` : `/sessions/${data.sessionId}`
+      throw redirect({ to: '/auth/login', search: { redirect: redirectUrl } })
+    }
+
+    const { db } = await import('#/db/index')
 
     const gs = await db.select().from(gameSession).where(eq(gameSession.id, data.sessionId)).get()
     if (!gs) throw new Error('Session nicht gefunden')
@@ -55,7 +61,7 @@ export const Route = createFileRoute('/sessions/$sessionId/')({
 function SessionLobbyPage() {
   const { session, players: initialPlayers, quizTitle, isMaster, baseUrl } = Route.useLoaderData()
   const { sessionId } = Route.useParams()
-  const { state } = useGameSocket(sessionId, null)
+  const { state, send } = useGameSocket(sessionId, null)
   const joinUrl = `${baseUrl}/sessions/${session.id}/join?code=${session.joinCode}`
   const [copied, setCopied] = useState(false)
 
@@ -146,6 +152,25 @@ function SessionLobbyPage() {
         </Card>
       </div>
 
+      {isMaster && state?.pendingJoiners && state.pendingJoiners.length > 0 && (
+        <Card className="mt-5 p-4 flex flex-col gap-2 border-violet-500/40">
+          <p className="font-board uppercase tracking-wider text-sm text-violet-300">
+            Beitrittsanfragen ({state.pendingJoiners.length})
+          </p>
+          {state.pendingJoiners.map(p => (
+            <div key={p.userId} className="flex items-center gap-2">
+              <span className="flex-1 truncate text-ink-50 font-medium">{p.displayName}</span>
+              <Button variant="subtle" size="sm" onClick={() => send('REJECT_PENDING_JOIN', { userId: p.userId })}>
+                Ablehnen
+              </Button>
+              <Button variant="success" size="sm" onClick={() => send('ADMIT_PENDING_JOIN', { userId: p.userId })}>
+                Akzeptieren
+              </Button>
+            </div>
+          ))}
+        </Card>
+      )}
+
       {isMaster && (
         <div className="mt-6 flex flex-col gap-3">
           <div className="flex flex-col sm:flex-row gap-3">
@@ -189,6 +214,8 @@ function SessionLobbyPage() {
           </Link>
         </div>
       )}
+
+      {state?.phase === 'SESSION_CLOSED' && <SessionClosedOverlay />}
     </PageContainer>
   )
 }

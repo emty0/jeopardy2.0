@@ -130,6 +130,10 @@ export const gameSession = sqliteTable('game_session', {
   currentState: text('current_state').notNull().default('LOBBY'),
   activePlayerId: text('active_player_id'),
   activeQuestionId: text('active_question_id'),
+  winnerPlayerId: text('winner_player_id'),
+  startedAt: integer('started_at', { mode: 'timestamp' }),
+  totalQuestions: integer('total_questions'),
+  answeredCount: integer('answered_count').notNull().default(0),
   createdAt: now(),
   finishedAt: integer('finished_at', { mode: 'timestamp' }),
 })
@@ -154,11 +158,19 @@ export const questionAttempt = sqliteTable('question_attempt', {
   pointsAwarded: integer('points_awarded').notNull().default(0),
   buzzedAt: integer('buzzed_at', { mode: 'timestamp' }),
   resolvedAt: integer('resolved_at', { mode: 'timestamp' }),
+  attemptOrder: integer('attempt_order').notNull().default(0),
+  noPenaltyApplied: integer('no_penalty_applied', { mode: 'boolean' }).notNull().default(false),
+  wasRapidFire: integer('was_rapid_fire', { mode: 'boolean' }).notNull().default(false),
+  revealedMediaIndexAtBuzz: integer('revealed_media_index_at_buzz').notNull().default(-1),
+  reactionMs: integer('reaction_ms'),
 })
 
 export const answeredQuestion = sqliteTable('answered_question', {
   sessionId: text('session_id').notNull().references(() => gameSession.id, { onDelete: 'cascade' }),
   questionId: text('question_id').notNull().references(() => question.id),
+  resolution: text('resolution').notNull().default('solved'), // 'solved' | 'skipped' | 'rapid_fire' | 'unanswered'
+  solvedAt: integer('solved_at', { mode: 'timestamp' }),
+  firstSolverPlayerId: text('first_solver_player_id'),
 }, (t) => [primaryKey({ columns: [t.sessionId, t.questionId] })])
 
 export const buzzLog = sqliteTable('buzz_log', {
@@ -166,4 +178,26 @@ export const buzzLog = sqliteTable('buzz_log', {
   questionId: text('question_id').notNull().references(() => question.id),
   playerId: text('player_id').notNull().references(() => gamePlayer.id),
   buzzedAt: integer('buzzed_at', { mode: 'timestamp' }).default(sql`(unixepoch())`),
+  revealedAt: integer('revealed_at', { mode: 'timestamp' }),
+  reactionMs: integer('reaction_ms'),
 }, (t) => [primaryKey({ columns: [t.sessionId, t.questionId, t.playerId] })])
+
+// ─── Stats / Audit-Log ────────────────────────────────────────────────────────
+
+export const gameEvent = sqliteTable('game_event', {
+  id: id(),
+  sessionId: text('session_id').notNull().references(() => gameSession.id, { onDelete: 'cascade' }),
+  seq: integer('seq').notNull(),
+  type: text('type').notNull(),
+  actorPlayerId: text('actor_player_id'),
+  actorUserId: text('actor_user_id'),
+  questionId: text('question_id'),
+  payload: text('payload').notNull().default('{}'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+})
+
+export const questionReveal = sqliteTable('question_reveal', {
+  sessionId: text('session_id').notNull().references(() => gameSession.id, { onDelete: 'cascade' }),
+  questionId: text('question_id').notNull().references(() => question.id),
+  revealedAt: integer('revealed_at', { mode: 'timestamp' }).notNull(),
+}, (t) => [primaryKey({ columns: [t.sessionId, t.questionId] })])

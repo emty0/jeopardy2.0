@@ -15,6 +15,8 @@ import {
   Avatar,
   BuzzerButton,
   QuestionPicker,
+  EventNotificationOverlay,
+  SessionClosedOverlay,
 } from '#/components/game'
 import { Card, Pill, Sheet, MediaCarousel } from '#/components/ui'
 import { formatPoints } from '#/lib/format'
@@ -272,6 +274,8 @@ function PlayContent({
         />
       </button>
 
+      <EventNotificationOverlay state={state} surface="player" selfPlayerId={playerId} />
+
       <Sheet open={leaderboardOpen} onClose={() => setLeaderboardOpen(false)} title="Rangliste">
         <div className="px-4 pb-6">
           <Scoreboard
@@ -283,6 +287,8 @@ function PlayContent({
           />
         </div>
       </Sheet>
+
+      {state.phase === 'SESSION_CLOSED' && <SessionClosedOverlay />}
     </div>
   )
 }

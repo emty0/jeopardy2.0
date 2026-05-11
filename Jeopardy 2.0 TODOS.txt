@@ -1,0 +1,39 @@
+Do:
+Game richtig Hosten nicht localhost. Server
+
+Fix:
+On Buzzer Video pause! (teste mit Autoplay)
+YT Video nicht Autoplay in Master view.
+Spieler sehen neben Buzzer extra Content ansich fix
+Fullscreen text und fix.(bei Video das vido frage Fullscreen)
+mp3 pitch Speed preview
+qr code oder link kommt error kein Login pls first! also soll dann Login und dann direkt Lobby join
+
+Video cut bugged?
+
+Extras:
+Quiz edit für Handy(Ansicht wie Auswahl in game)
+Sound speicher fix.
+Buzzer fast gleich anzeigen im ms. (Buzzer battle minigame)
+Audio cut
+Auf public stellen wenn quizz durch ist
+Medium selber erkennen nicht angeben was es ist?(oder sonst trennen upload/link)
+Bild in puzzle form und die spieler müssen auf Handy lösen (minigames zur frage auf dem Handy)
+Als Admin Extra anischt Zum testen Von Special Events und weiteres!
+
+Besser mit Opus?:
+Random Events frage frei rubbeln
+Bonuspunkte. Wie Mario Party. Risk next Quiz Start mit minus Punkten
+Pixel feature mit timer dass immer weniger werden!
+Joker bei Start des Games und/oder als Belohnung nach einer Frage kann auch Secret sein.
+iq test battle.net als jeopardy game (wer wird Millionär)
+
+gerade dran:
+
+
+
+Fix(tot):
+Fullscreen Esc ohne Focus klick.
+
+Testen mit 3 oder mehr Player:
+Override Punte geben und nehmen
